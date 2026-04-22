@@ -967,6 +967,141 @@ const App = () => {
       maximumFractionDigits: 2
     })}`;
   };
+  // Helper: compute total mg (or IU) of each nutrient delivered per 1 kg of premix product
+  // dose (g/hd/d) -> scale factor = 1000/dose makes "per kg premix"
+  const perKgPremix = () => {
+    const reqs = adjustedReqs.base;
+    const scale = 1000 / dose;
+    const out = {};
+    MINERAL_KEYS.forEach(k => {
+      const mgTotal = (reqs[k] || 0) * dmi; // mg/day total
+      const orgFrac = (organicPct[k] || 0) / 100;
+      out[k + '_inorg'] = +((mgTotal * (1 - orgFrac) * scale).toFixed(2)); // mg/kg premix
+      out[k + '_org']   = +((mgTotal * orgFrac * scale).toFixed(2));
+      out[k + '_total'] = +(mgTotal * scale).toFixed(2);
+    });
+    VITAMIN_KEYS.forEach(k => {
+      out[k] = +(((reqs[k] || 0) * dmi * scale).toFixed(2)); // IU/kg or mg/kg
+    });
+    if (reqs.Cr) out.Cr = +(((reqs.Cr || 0) * dmi * scale).toFixed(2));
+    return out;
+  };
+
+  // Rationall matrix CSV export — single feed-row matching 61-col format
+  const exportRationallCSV = () => {
+    const n = perKgPremix();
+    const feedNo = prompt('Feed # for Rationall matrix (e.g. 600):', '600') || '600';
+    const feedName = `Custom ${species} Premix ${stage.replace(/[^A-Za-z0-9/ -]/g,'')}`;
+    // Build header rows (matching user's matrix.csv layout)
+    let csv = 'Name:,Matrix,' + Array(57).fill('').join(',') + '\n';
+    csv += 'Dry:,1,' + Array(57).fill('').join(',') + '\n';
+    csv += ',,Nutrient,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57\n';
+    csv += ',,Name,Price,Dry Matter,Wet Matter,protein,ME,Nel 2001,TDN,N.D.F.,For.NDF,A.D.F.,ASH,CA,Phosphoru,Salt,Forage,EE(Fat),RUP,NSC,RDNSC,sugar,starch,RD Starch,NPN,BUFFER,DCAD,VIT A,VIT  E,VIT D,vit biotin,CHOLINE,Niacin,Copper,organic cu,zinc,organic zn,Manganese,organic mn,Cobalt,organic co,organic se,Chromium,calcium,Phosphorus,potassium,sodium,chloride,sulfur,Mg,Iodine,Selenium,Iron,MP,RDP,RUP,Metbolize Met,Metbolize Lys,Carrier,Nel 2021\n';
+    csv += 'Feed,Name,Unit,Dong,Kg,Kg,Kg,Mcal,Mcal,%,Kg,Kg,Kg,Kg,g,g,g,Kg,Kg,Kg,Kg,Kg,Kg,Kg,g,g,g,meq,KIU,IU,IU,mg,g,g,mg,mg,mg,mg,mg,mg,mg,mg,mg,mg,g,g,g,g,g,g,g,mg,mg,mg,gram,Kg,Kg,g,g,Kg,Mcal\n';
+    // Build the feed row — cost per kg premix, DM ~0.97 typical for dry premix
+    const pricePerKg = calc.totalCostPerTon / 1000; // USD per kg premix
+    // Price is in user's currency
+    const priceConverted = (pricePerKg * (CURRENCIES[currency].rate || 1)).toFixed(2);
+    const DM = 0.97, WM = +(1/DM).toFixed(9);
+    const row = [
+      feedNo, `"${feedName}"`, 'Kg', priceConverted,
+      DM, WM,          // protein..Nel2001 blank
+      '', '', '',      // protein, ME, Nel
+      '', '', '', '', '',       // TDN, NDF, ForNDF, ADF, ASH
+      '', '', '',      // CA, Phosphoru, Salt (we fill via exact columns below)
+      '', '',          // Forage, EE
+      '', '', '',      // RUP, NSC, RDNSC
+      '', '', '',      // sugar, starch, RDStarch
+      '', '', '',      // NPN, BUFFER, DCAD
+      (n.VitA/1000).toFixed(2),  // VIT A in KIU (divide by 1000)
+      n.VitE || '',    // VIT E in IU
+      n.VitD || '',    // VIT D in IU
+      n.Biotin || '',  // biotin mg
+      '', '',          // CHOLINE g, Niacin g
+      n.Cu_inorg || '', n.Cu_org || '',
+      n.Zn_inorg || '', n.Zn_org || '',
+      n.Mn_inorg || '', n.Mn_org || '',
+      n.Co_inorg || '', n.Co_org || '',
+      n.Se_org || '',  // organic Se
+      n.Cr || '',      // Chromium
+      '', '', '', '', '', '', '',  // calcium..Mg
+      n.I_total || '',
+      n.Se_inorg || '', // inorganic selenium as "Selenium"
+      n.Fe_total ? (n.Fe_total/1000).toFixed(3) : '', // Iron as gram
+      '', '', '',       // MP, RDP, RUP
+      '', '',           // MetMet, MetLys
+      '', ''            // Carrier, Nel 2021
+    ];
+    csv += row.join(',') + '\n';
+
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Rationall_Premix_${species}_${stage.replace(/[^A-Za-z0-9]/g, '_')}.csv`;
+    link.click();
+  };
+
+  // AMTS/NDS Standard_XML_Data export — single feed entry
+  const exportAMTS_XML = () => {
+    const n = perKgPremix();
+    const sampleNo = prompt('Sample No. (e.g. PRM-001):', 'PRM-' + Date.now().toString().slice(-6)) || 'PRM-001';
+    const feedName = `Custom ${species} Premix ${stage}`;
+    const today = new Date();
+    const mm = String(today.getMonth()+1).padStart(2,'0');
+    const dd = String(today.getDate()).padStart(2,'0');
+    const yyyy = today.getFullYear();
+    const dateStr = `${mm}/${dd}/${yyyy}`;
+    // Convert mg/kg to %DM for macro minerals (if present) — premix has none typically
+    // Trace minerals in ppm (mg/kg)
+    const DM_PCT = 97; // %
+    const tag = (name, value, unit, label) => {
+      if (value === undefined || value === null || value === '' || isNaN(value)) return '';
+      const u = unit ? ` unit="${unit}"` : '';
+      return `\t\t<${name} Value="${value}" Name="${label||name}"${u}/>\n`;
+    };
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    xml += '<Standard_XML_Data>\n';
+    xml += `\t<Lab_Name Value="Ruminant Premix Calculator" Name="Lab_Name"/>\n`;
+    xml += '\t<Sample_Data>\n';
+    xml += tag('Sample_No', sampleNo, null, 'Sample_No.');
+    xml += tag('Desc_1', feedName, null, 'Description-1');
+    xml += tag('Type', 'Vitamin Mineral Premix', null, 'Feed Type');
+    xml += tag('datesampled', dateStr, null, 'datesampled');
+    xml += tag('Name', 'Premix Calculator', null, 'Name');
+    xml += tag('DM', DM_PCT.toFixed(2), '%', 'Dry Matter');
+    xml += tag('CP', '0', '%DM', 'CP');
+    xml += tag('Ash', '95', '%DM', 'Ash'); // premix is ~95% ash
+    // Vitamins (per kg premix)
+    xml += tag('VitA_IU', n.VitA || 0, 'IU/kg', 'VitA');
+    xml += tag('VitD_IU', n.VitD || 0, 'IU/kg', 'VitD');
+    xml += tag('VitE_IU', n.VitE || 0, 'IU/kg', 'VitE');
+    xml += tag('Biotin', n.Biotin || 0, 'mg/kg', 'Biotin');
+    // Trace minerals in ppm (mg/kg premix)
+    xml += tag('Cu', n.Cu_total || 0, 'ppm', 'Cu');
+    xml += tag('Zn', n.Zn_total || 0, 'ppm', 'Zn');
+    xml += tag('Mn', n.Mn_total || 0, 'ppm', 'Mn');
+    xml += tag('Fe', n.Fe_total || 0, 'ppm', 'Fe');
+    xml += tag('Co', n.Co_total || 0, 'ppm', 'Co');
+    xml += tag('I',  n.I_total  || 0, 'ppm', 'I');
+    xml += tag('Se', n.Se_total || 0, 'ppm', 'Se');
+    if (n.Cr) xml += tag('Cr', n.Cr, 'ppm', 'Cr');
+    // Organic fractions as extra tags for NDS Professional
+    xml += tag('Cu_Organic', n.Cu_org || 0, 'ppm', 'Cu_Organic');
+    xml += tag('Zn_Organic', n.Zn_org || 0, 'ppm', 'Zn_Organic');
+    xml += tag('Mn_Organic', n.Mn_org || 0, 'ppm', 'Mn_Organic');
+    xml += tag('Se_Organic', n.Se_org || 0, 'ppm', 'Se_Organic');
+    xml += '\t</Sample_Data>\n';
+    xml += '</Standard_XML_Data>\n';
+
+    const blob = new Blob(['\uFEFF' + xml], { type: 'application/xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `AMTS_Premix_${species}_${stage.replace(/[^A-Za-z0-9]/g, '_')}.xml`;
+    link.click();
+  };
+
   const exportCSV = () => {
     let csv = 'RUMINANT PREMIX FORMULATION REPORT\n\n';
     csv += `Species,${species}\nBreed,${breed}\nStage,${stage}\n`;
@@ -1018,10 +1153,23 @@ const App = () => {
     value: k
   }, v.symbol, " ", k))), /*#__PURE__*/React.createElement("button", {
     onClick: exportCSV,
-    className: "bg-slate-900 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:bg-black transition"
+    className: "bg-slate-900 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:bg-black transition",
+    title: "Full formulation report (CSV)"
   }, /*#__PURE__*/React.createElement("i", {
     className: "fas fa-download"
-  }), " Export CSV"), /*#__PURE__*/React.createElement("button", {
+  }), " CSV"), /*#__PURE__*/React.createElement("button", {
+    onClick: exportRationallCSV,
+    className: "bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:bg-indigo-700 transition",
+    title: "Rationall matrix CSV — single feed row ready for Rationall import"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-table"
+  }), " Rationall"), /*#__PURE__*/React.createElement("button", {
+    onClick: exportAMTS_XML,
+    className: "bg-rose-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:bg-rose-700 transition",
+    title: "AMTS / NDS Standard_XML_Data feed entry"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-file-code"
+  }), " AMTS/NDS XML"), /*#__PURE__*/React.createElement("button", {
     onClick: () => window.print(),
     className: "bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:bg-slate-50 transition"
   }, /*#__PURE__*/React.createElement("i", {
