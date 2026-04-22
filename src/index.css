@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tooltip helper shared across components */
+.tooltip-container { position: relative; }
+.tooltip-container:hover .tooltip-pop { display: block; }
+.tooltip-pop {
+    display: none;
+    position: absolute;
+    bottom: 125%;
+    left: 0;
+    width: 260px;
+    padding: 8px 10px;
+    background: #1e293b;
+    color: white;
+    font-size: 11px;
+    line-height: 1.45;
+    border-radius: 6px;
+    z-index: 50;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    font-weight: normal;
+    text-transform: none;
+}
+
+@media print {
+    body { background-color: white !important; }
+    .no-print { display: none !important; }
+    table { page-break-inside: auto; }
+    tr { page-break-inside: avoid; }
+}
