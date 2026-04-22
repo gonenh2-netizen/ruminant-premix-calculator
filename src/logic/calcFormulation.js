@@ -1,113 +1,195 @@
 /**
  * Core formulation calculator.
  *
+ * State model (new):
+ *   organicSelections = { [productId]: { location, mode, value, anchorMineral? } }
+ *     location    : 'premix' | 'ration'
+ *     mode        : 'pct' (single only) | 'anchor_pct' (blend only) | 'fixed_g' (all)
+ *     value       : percentage (0–100) for pct / anchor_pct, grams/head/day for fixed_g
+ *     anchorMineral : which mineral the anchor_pct refers to
+ *   inorgSrc = { [mineralKey]: productId }   — per-mineral inorganic fallback
+ *
  * Order of operations:
  *   1. Start with daily mg/IU target per nutrient (reqs × DMI).
- *   2. Deduct contributions from enabled multi-mineral blends (deficitMg -= inclusion × fraction × 1000).
- *   3. Fill remaining deficit with the user's chosen organic + inorganic sources per mineral,
- *      using the organic% slider to split.
- *   4. Add vitamins from their dedicated sources.
- *   5. Add chromium if base.Cr > 0 (beef marbling).
- *   6. Carrier fills the balance to hit the total dose.
- *
- * Returns: { ingredients, summary, carrierG, carrierCostPerDose, totalCostPerDose, totalCostPerTon }
+ *   2. Process ration-side organic products (location='ration'):
+ *        — deliver their mineral contribution (reduce the daily deficit)
+ *        — do NOT add to premix ingredients (they live in the TMR).
+ *   3. Process premix-side organic products (location='premix'):
+ *        — deliver mineral contribution (reduce deficit)
+ *        — add product to premix ingredients.
+ *   4. Fill remaining per-mineral deficit with the inorganic source.
+ *   5. Vitamins, Cr auto-fill (KemTRACE), sheep Cu ceiling, carrier.
  */
 
 import { MINERAL_KEYS, VITAMIN_KEYS, NUTRIENT_LABELS } from '../data/requirements.js';
+import { productsFor, unifiedCatalog } from '../data/products.js';
 
 export function calcFormulation({
   adjustedReqs,
   dmi,
   dose,
-  organicPct,
-  orgSrc,
+  organicSelections = {},
   inorgSrc,
-  blendRates,
   prices,
   carrier,
+  species,
   PRODUCTS,
   BLENDS,
   VITAMIN_SOURCES,
   CARRIERS,
+  customProducts = [],
+  cuCeiling = null,
 }) {
   const reqs = adjustedReqs.base;
   const ingredients = [];
+  const warnings = [];
   let totalActiveG = 0;
   let totalCostPerDose = 0;
 
-  // Initialize daily-mg deficit tracker
-  const deficitMg = {};
-  MINERAL_KEYS.forEach((k) => { deficitMg[k] = (reqs[k] || 0) * dmi; });
-  let crDeficitMg = (reqs.Cr || 0) * dmi;
+  // Per-mineral daily requirement (mg)
+  const requiredMg = {};
+  [...MINERAL_KEYS, 'Cr'].forEach((m) => { requiredMg[m] = (reqs[m] || 0) * dmi; });
 
-  // 1. Apply multi-mineral blends
-  BLENDS.forEach((b) => {
-    const inclG = +blendRates[b.id] || 0;
-    if (inclG <= 0) return;
-    const cost = (inclG * (prices[b.id] || b.price)) / 1000;
-    totalActiveG += inclG;
+  // Per-mineral remaining deficit (mg) — gets drained as we place sources
+  const deficitMg = { ...requiredMg };
+
+  // Per-mineral delivery buckets (mg/day)
+  const delivered = {
+    ration: {},
+    premix_org: {},
+    premix_inorg: {},
+  };
+  [...MINERAL_KEYS, 'Cr'].forEach((m) => {
+    delivered.ration[m] = 0;
+    delivered.premix_org[m] = 0;
+    delivered.premix_inorg[m] = 0;
+  });
+
+  const catalog = unifiedCatalog(BLENDS, customProducts);
+
+  // Helper: compute grams of product needed to deliver target_mg of its anchor mineral
+  const gFromMineralTarget = (prod, mineral, targetMg) => {
+    const frac = prod.minerals[mineral];
+    if (!frac || frac <= 0) return 0;
+    return targetMg / 1000 / frac;
+  };
+
+  /**
+   * Deliver a product's minerals to the buckets.
+   * @param prod unified catalog entry
+   * @param gProd grams of the product delivered per head per day
+   * @param bucket 'ration' | 'premix_org'
+   */
+  const deliverProduct = (prod, gProd, bucket) => {
+    Object.entries(prod.minerals).forEach(([m, frac]) => {
+      const mgDelivered = gProd * frac * 1000;
+      if (delivered[bucket][m] === undefined) delivered[bucket][m] = 0;
+      delivered[bucket][m] += mgDelivered;
+      if (deficitMg[m] !== undefined) deficitMg[m] -= mgDelivered;
+    });
+  };
+
+  // Sort selections so blends process before singles (stability for mineral ownership)
+  const entries = Object.entries(organicSelections).filter(([, s]) => s);
+  const rationEntries = entries.filter(([, s]) => s.location === 'ration');
+  const premixEntries = entries.filter(([, s]) => s.location !== 'ration');
+
+  // 1. Ration-side products (reduce deficit, NOT in premix)
+  rationEntries.forEach(([pid, sel]) => {
+    const prod = catalog.find((p) => p.id === pid);
+    if (!prod) return;
+    // Ration mode must be fixed_g
+    const gProd = Math.max(0, +sel.value || 0);
+    if (gProd <= 0) return;
+    deliverProduct(prod, gProd, 'ration');
+    // Not added to ingredients — this is external to the premix
+  });
+
+  // 2. Premix-side organic products (reduce deficit + add to premix)
+  premixEntries.forEach(([pid, sel]) => {
+    const prod = catalog.find((p) => p.id === pid);
+    if (!prod) return;
+
+    let gProd = 0;
+    if (sel.mode === 'fixed_g') {
+      gProd = Math.max(0, +sel.value || 0);
+    } else if (sel.mode === 'pct' && prod.productKind === 'single') {
+      const mineral = Object.keys(prod.minerals)[0];
+      const remaining = Math.max(0, deficitMg[mineral] || 0);
+      const targetMg = remaining * (Math.max(0, Math.min(100, +sel.value || 0)) / 100);
+      gProd = gFromMineralTarget(prod, mineral, targetMg);
+    } else if (sel.mode === 'anchor_pct' && prod.productKind === 'blend') {
+      const anchor = sel.anchorMineral || Object.keys(prod.minerals)[0];
+      const remaining = Math.max(0, deficitMg[anchor] || 0);
+      const targetMg = remaining * (Math.max(0, Math.min(100, +sel.value || 0)) / 100);
+      gProd = gFromMineralTarget(prod, anchor, targetMg);
+    }
+    if (gProd <= 0) return;
+
+    deliverProduct(prod, gProd, 'premix_org');
+
+    const pricePerKg = prices[prod.id] ?? prod.price;
+    const cost = (gProd * pricePerKg) / 1000;
+    totalActiveG += gProd;
     totalCostPerDose += cost;
+
     ingredients.push({
-      key: b.id,
-      name: `${b.brand} ${b.name}`,
-      brand: b.brand,
-      nutrient: Object.keys(b.minerals).join('+'),
-      type: b.type,
-      category: 'Blend',
-      perDoseG: inclG,
-      perTonKg: (inclG / dose) * 1000,
-      pricePerKg: prices[b.id] || b.price,
+      key: prod.id,
+      name: prod.name,
+      brand: prod.brand,
+      nutrient: Object.keys(prod.minerals).join('+'),
+      type: prod.type,
+      category: prod.productKind === 'blend' ? 'Blend' : 'Organic',
+      perDoseG: gProd,
+      perTonKg: (gProd / dose) * 1000,
+      pricePerKg,
       costPerDose: cost,
-      note: b.note,
-    });
-    Object.entries(b.minerals).forEach(([m, frac]) => {
-      const mgDelivered = inclG * frac * 1000;
-      if (m === 'Cr') crDeficitMg -= mgDelivered;
-      else if (deficitMg[m] !== undefined) deficitMg[m] -= mgDelivered;
+      note: prod.note,
+      custom: prod.custom,
     });
   });
 
-  // 2. Fill per-mineral gaps
+  // 3. Per-mineral inorganic fill
   MINERAL_KEYS.forEach((m) => {
-    const remain = Math.max(0, deficitMg[m]);
+    const remain = Math.max(0, deficitMg[m] || 0);
     if (remain <= 0.001) return;
-    const orgFrac = (organicPct[m] || 0) / 100;
-    const inorgFrac = 1 - orgFrac;
-
-    const pushProduct = (prodId, portion, tag) => {
-      if (portion <= 0) return;
-      const prod = (PRODUCTS[m] || []).find((p) => p.id === prodId);
-      if (!prod) return;
-      const gProd = (remain * portion) / 1000 / prod.purity;
-      const cost = (gProd * (prices[prodId] || prod.price)) / 1000;
-      totalActiveG += gProd;
-      totalCostPerDose += cost;
-      ingredients.push({
-        key: prodId,
-        name: prod.name,
-        brand: prod.brand,
-        nutrient: m,
-        type: prod.type,
-        category: tag,
-        perDoseG: gProd,
-        perTonKg: (gProd / dose) * 1000,
-        pricePerKg: prices[prodId] || prod.price,
-        costPerDose: cost,
-        note: prod.note,
-      });
-    };
-    pushProduct(orgSrc[m], orgFrac, 'Organic');
-    pushProduct(inorgSrc[m], inorgFrac, 'Inorganic');
+    const pid = inorgSrc[m];
+    if (!pid) return;
+    const pool = productsFor(m, customProducts);
+    const prod = pool.find((p) => p.id === pid);
+    if (!prod) return;
+    const gProd = remain / 1000 / prod.purity;
+    const pricePerKg = prices[pid] ?? prod.price;
+    const cost = (gProd * pricePerKg) / 1000;
+    totalActiveG += gProd;
+    totalCostPerDose += cost;
+    delivered.premix_inorg[m] += remain;
+    deficitMg[m] = 0;
+    ingredients.push({
+      key: pid,
+      name: prod.name,
+      brand: prod.brand,
+      nutrient: m,
+      type: prod.type,
+      category: 'Inorganic',
+      perDoseG: gProd,
+      perTonKg: (gProd / dose) * 1000,
+      pricePerKg,
+      costPerDose: cost,
+      note: prod.note,
+      custom: prod.custom,
+    });
   });
 
-  // 3. Vitamins
+  // 4. Vitamins
   VITAMIN_KEYS.forEach((k) => {
     const req = reqs[k] || 0;
     if (req <= 0) return;
     const daily = req * dmi;
     const src = VITAMIN_SOURCES[k];
     const gProd = daily / src.potency;
-    const cost = (gProd * (prices[k] || src.price)) / 1000;
+    const pricePerKg = prices[k] ?? src.price;
+    const cost = (gProd * pricePerKg) / 1000;
     totalActiveG += gProd;
     totalCostPerDose += cost;
     ingredients.push({
@@ -119,39 +201,110 @@ export function calcFormulation({
       category: 'Vitamin',
       perDoseG: gProd,
       perTonKg: (gProd / dose) * 1000,
-      pricePerKg: prices[k] || src.price,
+      pricePerKg,
       costPerDose: cost,
     });
   });
 
-  // 4. Chromium (for marbling, if not already covered by KemTRACE blend)
-  if (crDeficitMg > 0.001) {
-    const gProd = crDeficitMg / 1000 / 0.0004; // default KemTRACE 0.04% Cr
-    const cost = (gProd * (prices.kem_cr || 95)) / 1000;
-    totalActiveG += gProd;
-    totalCostPerDose += cost;
+  // 5. Chromium auto-add via KemTRACE if deficit remains
+  const crDeficit = Math.max(0, deficitMg.Cr || 0);
+  if (crDeficit > 0.001) {
+    const crProd = (PRODUCTS.Cr || [])[0];
+    if (crProd) {
+      const gProd = crDeficit / 1000 / crProd.purity;
+      const pricePerKg = prices[crProd.id] ?? crProd.price;
+      const cost = (gProd * pricePerKg) / 1000;
+      totalActiveG += gProd;
+      totalCostPerDose += cost;
+      delivered.premix_org.Cr += crDeficit;
+      deficitMg.Cr = 0;
+      ingredients.push({
+        key: crProd.id + '_auto',
+        name: `${crProd.brand} ${crProd.name} (auto)`,
+        brand: crProd.brand,
+        nutrient: 'Cr',
+        type: crProd.type,
+        category: 'Blend',
+        perDoseG: gProd,
+        perTonKg: (gProd / dose) * 1000,
+        pricePerKg,
+        costPerDose: cost,
+        note: 'Auto-added to meet Cr target. Include KemTRACE directly in the Organic Sources panel to override.',
+      });
+    }
+  }
+
+  // 6. Sheep Cu ceiling check — includes ration + premix Cu
+  let dietCuPpm = null;
+  if (species === 'Sheep' && cuCeiling) {
+    const totalCu = (delivered.ration.Cu || 0) + (delivered.premix_org.Cu || 0) + (delivered.premix_inorg.Cu || 0);
+    dietCuPpm = dmi > 0 ? totalCu / dmi : 0;
+    if (dietCuPpm > cuCeiling) {
+      warnings.push(
+        `Diet Cu = ${dietCuPpm.toFixed(2)} mg/kg DM exceeds sheep ceiling of ${cuCeiling} mg/kg DM. ` +
+        `Reduce Cu sources or lower organic Cu dose.`
+      );
+    }
+  }
+
+  // 7. Carrier fills the balance
+  const carrierObj = CARRIERS.find((c) => c.id === carrier) || CARRIERS[0];
+  const carrierG = Math.max(0, dose - totalActiveG);
+  const carrierCostPerDose = (carrierG * (prices[carrier] ?? carrierObj.price)) / 1000;
+  totalCostPerDose += carrierCostPerDose;
+  if (carrierG > 0) {
     ingredients.push({
-      key: 'cr_auto',
-      name: 'Kemin KemTRACE Chromium (auto-added)',
-      brand: 'Kemin',
-      nutrient: 'Cr',
-      type: 'Chromium propionate',
-      category: 'Blend',
-      perDoseG: gProd,
-      perTonKg: (gProd / dose) * 1000,
-      pricePerKg: prices.kem_cr || 95,
-      costPerDose: cost,
-      note: 'Auto-added to meet Cr target. Add KemTRACE in blends panel to override.',
+      key: carrierObj.id,
+      name: carrierObj.name,
+      brand: 'Carrier',
+      nutrient: '-',
+      type: 'Carrier',
+      category: 'Carrier',
+      perDoseG: carrierG,
+      perTonKg: (carrierG / dose) * 1000,
+      pricePerKg: prices[carrier] ?? carrierObj.price,
+      costPerDose: carrierCostPerDose,
+    });
+  } else if (totalActiveG > dose) {
+    warnings.push(`Active ingredients (${totalActiveG.toFixed(1)} g) exceed the ${dose} g dose — no room for carrier. Increase dose or lower organic inclusion.`);
+  }
+
+  // 8. Per-mineral delivery rows (for the 3-column breakdown table)
+  const mineralDelivery = MINERAL_KEYS.map((m) => {
+    const ration = delivered.ration[m] || 0;
+    const premixOrg = delivered.premix_org[m] || 0;
+    const premixInorg = delivered.premix_inorg[m] || 0;
+    const total = ration + premixOrg + premixInorg;
+    const req = requiredMg[m] || 0;
+    return {
+      mineral: m,
+      label: NUTRIENT_LABELS[m] || m,
+      required: req,
+      ration,
+      premixOrganic: premixOrg,
+      premixInorganic: premixInorg,
+      total,
+      balance: total - req,
+    };
+  });
+  if ((reqs.Cr || 0) > 0) {
+    const ration = delivered.ration.Cr || 0;
+    const premixOrg = delivered.premix_org.Cr || 0;
+    const premixInorg = delivered.premix_inorg.Cr || 0;
+    const total = ration + premixOrg + premixInorg;
+    mineralDelivery.push({
+      mineral: 'Cr',
+      label: NUTRIENT_LABELS.Cr,
+      required: requiredMg.Cr || 0,
+      ration,
+      premixOrganic: premixOrg,
+      premixInorganic: premixInorg,
+      total,
+      balance: total - (requiredMg.Cr || 0),
     });
   }
 
-  // 5. Carrier
-  const carrierObj = CARRIERS.find((c) => c.id === carrier) || CARRIERS[0];
-  const carrierG = Math.max(0, dose - totalActiveG);
-  const carrierCostPerDose = (carrierG * (prices[carrier] || carrierObj.price)) / 1000;
-  totalCostPerDose += carrierCostPerDose;
-
-  // Summary of requirements
+  // 9. Summary of requirements (unchanged contract)
   const summary = [];
   [...MINERAL_KEYS, ...VITAMIN_KEYS].forEach((k) => {
     const v = reqs[k];
@@ -163,13 +316,25 @@ export function calcFormulation({
     summary.push({ key: 'Cr', label: 'Chromium', unit: 'mg', reqPerKgDm: reqs.Cr, dailyTotal: reqs.Cr * dmi });
   }
 
+  // deliveredMg kept for legacy compatibility (flat Cu total etc.)
+  const deliveredMg = {};
+  [...MINERAL_KEYS, 'Cr'].forEach((m) => {
+    deliveredMg[m] = (delivered.ration[m] || 0) + (delivered.premix_org[m] || 0) + (delivered.premix_inorg[m] || 0);
+  });
+
   return {
     ingredients,
     summary,
+    mineralDelivery,
     carrierObj,
     carrierG,
     carrierCostPerDose,
     totalCostPerDose,
     totalCostPerTon: totalCostPerDose * (1000000 / dose),
+    totalActiveG,
+    delivered,
+    deliveredMg,
+    warnings,
+    dietCuPpm,
   };
 }

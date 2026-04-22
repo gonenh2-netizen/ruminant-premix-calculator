@@ -1,59 +1,86 @@
 import { useState, useMemo, useEffect } from 'react';
-import { REQS, MINERAL_KEYS, NUTRIENT_LABELS } from './data/requirements.js';
+import { REQS } from './data/requirements.js';
 import { PRODUCTS } from './data/products.js';
 import { BLENDS } from './data/blends.js';
-import { VITAMIN_SOURCES, CARRIERS, CURRENCIES, BIOAVAIL_TIERS } from './data/misc.js';
+import { VITAMIN_SOURCES, CARRIERS, CURRENCIES } from './data/misc.js';
 import { adjustReqs } from './logic/adjustReqs.js';
 import { calcFormulation } from './logic/calcFormulation.js';
+import { useCustomProducts, useSavedFormulations } from './hooks/useCustomProducts.js';
 
-/**
- * Minimal working skeleton.
- * Claude Code: the full UI (per-mineral dropdowns, blend panel, custom-product modal,
- * bioavail guide, Rationall & AMTS exports) is specified in CLAUDE.md.
- * Port the feature set from the legacy single-file HTML into the components listed
- * in CLAUDE.md's "Target file layout" section.
- */
+import { OrganicSourcesPanel } from './components/OrganicSourcesPanel.jsx';
+import { InorganicSourcesPanel } from './components/InorganicSourcesPanel.jsx';
+import { MineralDeliveryTable } from './components/MineralDeliveryTable.jsx';
+import { CustomProductModal } from './components/CustomProductModal.jsx';
+import { CustomProductsList } from './components/CustomProductsList.jsx';
+import { BioavailGuide } from './components/BioavailGuide.jsx';
+import { FormulaTable } from './components/FormulaTable.jsx';
+import { SaveLoadPanel } from './components/SaveLoadPanel.jsx';
 
-const CUSTOM_STORAGE_KEY = 'premix_calculator_custom_products_v1';
+import { exportFormulationCSV } from './exports/exportCSV.js';
+import { exportRationallCSV } from './exports/exportRationall.js';
+import { exportAMTS_XML } from './exports/exportAMTS.js';
+
+const BATCH_OPTIONS = [
+  { value: 1000, label: '1,000 kg (1 ton)' },
+  { value: 500,  label: '500 kg' },
+  { value: 100,  label: '100 kg' },
+];
+
+const DEFAULT_STATE = {
+  species: 'Dairy',
+  breed: 'Holstein',
+  stage: 'Fresh / Early Lactation',
+  dmi: 24,
+  dose: 100,
+  milkYield: 35,
+  carrier: 'limestone',
+  currency: 'USD',
+  batchKg: 1000,
+  marbling: false,
+  colorFocus: false,
+  shelfLife: false,
+  // organicSelections: { [productId]: { location, mode, value, anchorMineral? } }
+  organicSelections: {
+    availa_zn: { location: 'premix', mode: 'pct',    value: 30, anchorMineral: 'Zn' },
+    availa_cu: { location: 'premix', mode: 'pct',    value: 30, anchorMineral: 'Cu' },
+    availa_mn: { location: 'premix', mode: 'pct',    value: 20, anchorMineral: 'Mn' },
+    co_gluco:  { location: 'premix', mode: 'pct',    value: 100, anchorMineral: 'Co' },
+    selplex:   { location: 'premix', mode: 'pct',    value: 100, anchorMineral: 'Se' },
+  },
+  inorgSrc:   { Zn: 'zn_sulfate',  Cu: 'cu_sulfate',  Mn: 'mn_sulfate',  Co: 'co_carb',   Se: 'se_selenite', I: 'ki',      Fe: 'fe_sulfate' },
+  priceOverrides: {},
+};
+
+function defaultPrices() {
+  const p = {};
+  for (const m in PRODUCTS) PRODUCTS[m].forEach((prod) => { p[prod.id] = prod.price; });
+  BLENDS.forEach((b) => { p[b.id] = b.price; });
+  for (const v in VITAMIN_SOURCES) p[v] = VITAMIN_SOURCES[v].price;
+  CARRIERS.forEach((c) => { p[c.id] = c.price; });
+  return p;
+}
 
 export default function App() {
-  const [species, setSpecies] = useState('Dairy');
-  const [breed, setBreed] = useState('Holstein');
-  const [stage, setStage] = useState('Fresh / Early Lactation');
-  const [dmi, setDmi] = useState(24);
-  const [dose, setDose] = useState(100);
-  const [milkYield, setMilkYield] = useState(35);
-  const [carrier, setCarrier] = useState('limestone');
-  const [currency, setCurrency] = useState('USD');
+  const [species, setSpecies] = useState(DEFAULT_STATE.species);
+  const [breed, setBreed] = useState(DEFAULT_STATE.breed);
+  const [stage, setStage] = useState(DEFAULT_STATE.stage);
+  const [dmi, setDmi] = useState(DEFAULT_STATE.dmi);
+  const [dose, setDose] = useState(DEFAULT_STATE.dose);
+  const [milkYield, setMilkYield] = useState(DEFAULT_STATE.milkYield);
+  const [carrier, setCarrier] = useState(DEFAULT_STATE.carrier);
+  const [currency, setCurrency] = useState(DEFAULT_STATE.currency);
+  const [batchKg, setBatchKg] = useState(DEFAULT_STATE.batchKg);
   const [marbling, setMarbling] = useState(false);
   const [colorFocus, setColorFocus] = useState(false);
   const [shelfLife, setShelfLife] = useState(false);
-  const [organicPct, setOrganicPct] = useState({ Zn: 30, Cu: 30, Mn: 20, Co: 100, Se: 100, I: 0, Fe: 0 });
-  const [orgSrc, setOrgSrc] = useState({ Zn: 'availa_zn', Cu: 'availa_cu', Mn: 'availa_mn', Co: 'co_gluco', Se: 'selplex', I: 'eddi', Fe: 'fe_gly' });
-  const [inorgSrc, setInorgSrc] = useState({ Zn: 'zn_sulfate', Cu: 'cu_sulfate', Mn: 'mn_sulfate', Co: 'co_carb', Se: 'se_selenite', I: 'ki', Fe: 'fe_sulfate' });
-  const [blendRates, setBlendRates] = useState({});
-  const [prices, setPrices] = useState(() => {
-    const p = {};
-    for (const m in PRODUCTS) PRODUCTS[m].forEach((prod) => { p[prod.id] = prod.price; });
-    BLENDS.forEach((b) => { p[b.id] = b.price; });
-    for (const v in VITAMIN_SOURCES) p[v] = VITAMIN_SOURCES[v].price;
-    CARRIERS.forEach((c) => { p[c.id] = c.price; });
-    return p;
-  });
+  const [organicSelections, setOrganicSelections] = useState(DEFAULT_STATE.organicSelections);
+  const [inorgSrc, setInorgSrc] = useState(DEFAULT_STATE.inorgSrc);
+  const [prices, setPrices] = useState(defaultPrices);
+  const [modalOpen, setModalOpen] = useState(false);
 
-  // localStorage-backed custom products (Claude Code: surface in UI via a modal + list)
-  const [customProducts, setCustomProducts] = useState([]);
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(CUSTOM_STORAGE_KEY);
-      if (raw) setCustomProducts(JSON.parse(raw));
-    } catch {}
-  }, []);
-  useEffect(() => {
-    try { localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(customProducts)); } catch {}
-  }, [customProducts]);
+  const { customProducts, addCustom, removeCustom } = useCustomProducts();
+  const { saved, saveFormulation, removeFormulation } = useSavedFormulations();
 
-  // Reset stage/breed when species changes
   useEffect(() => {
     const stages = Object.keys(REQS[species].stages);
     if (!stages.includes(stage)) setStage(stages[0]);
@@ -68,10 +95,13 @@ export default function App() {
 
   const calc = useMemo(
     () => calcFormulation({
-      adjustedReqs, dmi, dose, organicPct, orgSrc, inorgSrc, blendRates, prices, carrier,
+      adjustedReqs, dmi, dose, organicSelections, inorgSrc, prices, carrier,
+      species,
       PRODUCTS, BLENDS, VITAMIN_SOURCES, CARRIERS,
+      customProducts,
+      cuCeiling: REQS[species].cuCeiling || null,
     }),
-    [adjustedReqs, dmi, dose, organicPct, orgSrc, inorgSrc, blendRates, prices, carrier],
+    [adjustedReqs, dmi, dose, organicSelections, inorgSrc, prices, carrier, customProducts, species],
   );
 
   const c = CURRENCIES[currency];
@@ -80,113 +110,294 @@ export default function App() {
   const sp = REQS[species];
   const stages = Object.keys(sp.stages);
 
-  return (
-    <div className="min-h-screen p-6 max-w-6xl mx-auto">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-6">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
-            <i className="fas fa-flask-vial text-emerald-600 mr-2"></i>
-            Ruminant Vitamin &amp; Mineral Premix Calculator
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">Dairy · Beef · Goats · Sheep — Vite/React skeleton</p>
-        </div>
-        <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="bg-white border rounded-lg px-3 py-2">
-          {Object.entries(CURRENCIES).map(([k, v]) => <option key={k} value={k}>{v.symbol} {k}</option>)}
-        </select>
-      </header>
+  const currentState = {
+    species, breed, stage, dmi, dose, milkYield, carrier, currency, batchKg,
+    marbling, colorFocus, shelfLife,
+    organicSelections, inorgSrc, priceOverrides: prices,
+  };
 
-      <div className="bg-white rounded-xl p-2 flex gap-1 mb-5 shadow-sm border">
+  const loadFormulation = (s) => {
+    if (!s) return;
+    setSpecies(s.species); setBreed(s.breed); setStage(s.stage);
+    setDmi(s.dmi); setDose(s.dose); setMilkYield(s.milkYield || 30);
+    setCarrier(s.carrier); setCurrency(s.currency); setBatchKg(s.batchKg || 1000);
+    setMarbling(!!s.marbling); setColorFocus(!!s.colorFocus); setShelfLife(!!s.shelfLife);
+    // Back-compat: older saves have organicPct/orgSrc/blendRates — migrate to organicSelections
+    if (s.organicSelections) {
+      setOrganicSelections(s.organicSelections);
+    } else if (s.organicPct && s.orgSrc) {
+      const migrated = {};
+      Object.entries(s.organicPct).forEach(([m, pct]) => {
+        const pid = s.orgSrc[m];
+        if (!pid || !pct) return;
+        migrated[pid] = { location: 'premix', mode: 'pct', value: pct, anchorMineral: m };
+      });
+      Object.entries(s.blendRates || {}).forEach(([pid, g]) => {
+        if (!g) return;
+        migrated[pid] = { location: 'premix', mode: 'fixed_g', value: g };
+      });
+      setOrganicSelections(migrated);
+    }
+    if (s.inorgSrc) setInorgSrc(s.inorgSrc);
+    if (s.priceOverrides) setPrices((prev) => ({ ...prev, ...s.priceOverrides }));
+  };
+
+  return (
+    <div className="min-h-screen p-4 md:p-6 max-w-7xl mx-auto">
+      <Header currency={currency} setCurrency={setCurrency}
+              onExportCSV={() => exportFormulationCSV({ calc, species, stage, breed, dmi, dose, batchKg, currency })}
+              onExportRationall={() => exportRationallCSV({ calc, species, stage, dose, currency, currencyRate: c.rate, customProducts })}
+              onExportAMTS={() => exportAMTS_XML({ calc, species, stage, dose, customProducts })}
+              onPrint={() => window.print()} />
+
+      <div className="bg-white rounded-xl p-2 flex gap-1 mb-5 shadow-sm border no-print">
         {Object.keys(REQS).map((s) => (
-          <button
-            key={s}
-            onClick={() => setSpecies(s)}
-            className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm ${species === s ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-          >
+          <button key={s} onClick={() => setSpecies(s)}
+            className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition ${species === s ? 'bg-emerald-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'}`}>
             {s}
           </button>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <section className="bg-white rounded-xl p-5 shadow-sm border space-y-3">
-          <h2 className="font-semibold border-b pb-2">Animal Profile</h2>
-          <label className="block text-xs font-bold text-slate-500 uppercase">Breed</label>
-          <select value={breed} onChange={(e) => setBreed(e.target.value)} className="w-full bg-slate-50 border rounded-lg p-2 text-sm">
-            {sp.breeds.map((b) => <option key={b}>{b}</option>)}
-          </select>
-          <label className="block text-xs font-bold text-slate-500 uppercase">Stage</label>
-          <select value={stage} onChange={(e) => setStage(e.target.value)} className="w-full bg-slate-50 border rounded-lg p-2 text-sm">
-            {stages.map((s) => <option key={s}>{s}</option>)}
-          </select>
-          {sp.hasMilkYield && stage.toLowerCase().includes('lactation') && (
-            <>
-              <label className="block text-xs font-bold text-slate-500 uppercase">Milk Yield (kg/d)</label>
-              <input type="number" step="0.1" value={milkYield} onChange={(e) => setMilkYield(+e.target.value)}
-                     className="w-full bg-emerald-50 border border-emerald-200 rounded-lg p-2 font-bold text-emerald-700" />
-            </>
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase">DMI kg/d</label>
-              <input type="number" step="0.1" value={dmi} onChange={(e) => setDmi(+e.target.value)} className="w-full bg-slate-50 border rounded-lg p-2 text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase">Dose g/d</label>
-              <input type="number" value={dose} onChange={(e) => setDose(+e.target.value)} className="w-full bg-emerald-50 border border-emerald-200 rounded-lg p-2 text-sm font-bold text-emerald-700" />
-            </div>
-          </div>
-          {species === 'Beef' && (
-            <div className="pt-3 border-t space-y-2 text-sm">
-              <div className="font-semibold text-rose-700">Meat Quality Targets</div>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={marbling} onChange={(e) => setMarbling(e.target.checked)} /> Marbling (IMF)</label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={colorFocus} onChange={(e) => setColorFocus(e.target.checked)} /> Bright red color</label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={shelfLife} onChange={(e) => setShelfLife(e.target.checked)} /> Extended shelf life</label>
-            </div>
-          )}
-        </section>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="space-y-5">
+          <AnimalProfile
+            sp={sp} stages={stages}
+            breed={breed} setBreed={setBreed}
+            stage={stage} setStage={setStage}
+            dmi={dmi} setDmi={setDmi}
+            dose={dose} setDose={setDose}
+            milkYield={milkYield} setMilkYield={setMilkYield}
+            carrier={carrier} setCarrier={setCarrier}
+            batchKg={batchKg} setBatchKg={setBatchKg}
+            species={species}
+            marbling={marbling} setMarbling={setMarbling}
+            colorFocus={colorFocus} setColorFocus={setColorFocus}
+            shelfLife={shelfLife} setShelfLife={setShelfLife}
+          />
+          <SaveLoadPanel
+            saved={saved}
+            saveFormulation={saveFormulation}
+            removeFormulation={removeFormulation}
+            currentState={currentState}
+            onLoad={loadFormulation}
+          />
+        </div>
 
-        <section className="md:col-span-2 space-y-5">
-          <div className="bg-slate-900 text-white rounded-xl p-5 shadow">
-            <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Final premix cost</p>
-            <div className="text-3xl font-black text-emerald-400 mt-1">{fmt(calc.totalCostPerTon)}</div>
-            <div className="text-xs text-slate-400 uppercase">per ton · {fmt(calc.totalCostPerDose, 4)} per {dose}g dose</div>
-          </div>
+        <div className="lg:col-span-2 space-y-5">
+          <CostHeadline calc={calc} dose={dose} fmt={fmt} />
 
-          <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
-            <div className="bg-slate-50 px-5 py-3 border-b">
-              <h3 className="font-bold text-slate-800">Daily Nutrient Requirements</h3>
-              <p className="text-xs text-slate-500">Per animal at {dmi} kg DMI · {adjustedReqs.notes.length > 0 && <span className="text-blue-600">{adjustedReqs.notes.length} adjustment(s) applied</span>}</p>
-            </div>
-            <table className="w-full text-sm">
-              <thead className="text-[10px] uppercase text-slate-400 font-bold border-b">
-                <tr><th className="px-5 py-2 text-left">Nutrient</th><th className="px-5 py-2 text-right">Per kg DM</th><th className="px-5 py-2 text-right text-blue-600">Daily</th></tr>
-              </thead>
-              <tbody className="divide-y">
-                {calc.summary.map((s) => (
-                  <tr key={s.key}>
-                    <td className="px-5 py-2 font-medium">{s.label}</td>
-                    <td className="px-5 py-2 text-right text-slate-500">{s.reqPerKgDm} <span className="text-[10px]">{s.unit}</span></td>
-                    <td className="px-5 py-2 text-right font-bold text-blue-600">{s.dailyTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })} <span className="text-[10px] font-normal text-blue-400">{s.unit}/d</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {adjustedReqs.notes.length > 0 && (
-            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg text-sm">
-              <div className="font-bold text-blue-800 mb-1">Applied adjustments</div>
-              <ul className="text-xs text-blue-700 list-disc list-inside space-y-1">
-                {adjustedReqs.notes.map((n, i) => <li key={i}>{n}</li>)}
+          {calc.warnings.length > 0 && (
+            <div className="bg-rose-50 border-l-4 border-rose-500 p-4 rounded-r-lg text-sm">
+              <div className="font-bold text-rose-800 mb-1"><i className="fas fa-triangle-exclamation mr-1"></i>Warnings</div>
+              <ul className="text-xs text-rose-700 list-disc list-inside space-y-1">
+                {calc.warnings.map((w, i) => <li key={i}>{w}</li>)}
               </ul>
             </div>
           )}
-        </section>
+
+          <RequirementsTable calc={calc} dmi={dmi} adjustedReqs={adjustedReqs} />
+        </div>
+      </div>
+
+      <div className="mt-5 space-y-5">
+        <OrganicSourcesPanel
+          customProducts={customProducts}
+          organicSelections={organicSelections} setOrganicSelections={setOrganicSelections}
+          prices={prices} setPrices={setPrices}
+          fmt={fmt}
+        />
+
+        <InorganicSourcesPanel
+          customProducts={customProducts}
+          inorgSrc={inorgSrc} setInorgSrc={setInorgSrc}
+          prices={prices} setPrices={setPrices}
+          fmt={fmt}
+        />
+
+        <MineralDeliveryTable calc={calc} />
+
+        <FormulaTable calc={calc} dose={dose} batchKg={batchKg} fmt={fmt} setPrices={setPrices} />
+
+        <BioavailGuide />
+
+        <CustomProductsList
+          customProducts={customProducts}
+          onRemove={removeCustom}
+          onAddClick={() => setModalOpen(true)}
+        />
       </div>
 
       <footer className="mt-8 text-center text-xs text-slate-400">
-        Skeleton build — port the full UI from the legacy HTML per CLAUDE.md. Custom products stored in localStorage key <code>{CUSTOM_STORAGE_KEY}</code>.
+        Ruminant Vitamin &amp; Mineral Premix Calculator · NRC/NASEM baselines · prices are USD estimates, editable per product.
       </footer>
+
+      <CustomProductModal open={modalOpen} onClose={() => setModalOpen(false)} onSave={addCustom} />
+    </div>
+  );
+}
+
+function Header({ currency, setCurrency, onExportCSV, onExportRationall, onExportAMTS, onPrint }) {
+  return (
+    <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-6 no-print">
+      <div>
+        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
+          <i className="fas fa-flask-vial text-emerald-600 mr-2"></i>
+          Ruminant Vitamin &amp; Mineral Premix Calculator
+        </h1>
+        <p className="text-sm text-slate-500 mt-1">Dairy · Beef · Goats · Sheep — NRC / NASEM based</p>
+      </div>
+      <div className="flex flex-wrap gap-2 items-center">
+        <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="bg-white border rounded-lg px-3 py-2 text-sm">
+          {Object.entries(CURRENCIES).map(([k, v]) => <option key={k} value={k}>{v.symbol} {k}</option>)}
+        </select>
+        <button onClick={onExportCSV} className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-2 rounded-lg text-xs font-semibold" title="Generic formulation report CSV">
+          <i className="fas fa-file-csv mr-1"></i> CSV
+        </button>
+        <button onClick={onExportRationall} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-semibold" title="Rationall matrix feed-row CSV">
+          <i className="fas fa-table mr-1"></i> Rationall
+        </button>
+        <button onClick={onExportAMTS} className="bg-sky-600 hover:bg-sky-700 text-white px-3 py-2 rounded-lg text-xs font-semibold" title="AMTS / NDS Standard_XML_Data">
+          <i className="fas fa-file-code mr-1"></i> AMTS/NDS XML
+        </button>
+        <button onClick={onPrint} className="bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-xs font-semibold" title="Print / save as PDF">
+          <i className="fas fa-print mr-1"></i> Print
+        </button>
+      </div>
+    </header>
+  );
+}
+
+function AnimalProfile({
+  sp, stages, breed, setBreed, stage, setStage, dmi, setDmi, dose, setDose,
+  milkYield, setMilkYield, carrier, setCarrier, batchKg, setBatchKg,
+  species, marbling, setMarbling, colorFocus, setColorFocus, shelfLife, setShelfLife,
+}) {
+  return (
+    <section className="bg-white rounded-xl p-5 shadow-sm border space-y-3">
+      <h2 className="font-semibold border-b pb-2">Animal Profile</h2>
+      <div>
+        <label className="block text-xs font-bold text-slate-500 uppercase">Breed</label>
+        <select value={breed} onChange={(e) => setBreed(e.target.value)} className="w-full bg-slate-50 border rounded-lg p-2 text-sm">
+          {sp.breeds.map((b) => <option key={b}>{b}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="block text-xs font-bold text-slate-500 uppercase">Stage</label>
+        <select value={stage} onChange={(e) => setStage(e.target.value)} className="w-full bg-slate-50 border rounded-lg p-2 text-sm">
+          {stages.map((s) => <option key={s}>{s}</option>)}
+        </select>
+      </div>
+      {sp.hasMilkYield && stage.toLowerCase().includes('lactation') && (
+        <div>
+          <label className="block text-xs font-bold text-slate-500 uppercase">Milk Yield (kg/d)</label>
+          <input type="number" step="0.1" value={milkYield} onChange={(e) => setMilkYield(+e.target.value)}
+                 className="w-full bg-emerald-50 border border-emerald-200 rounded-lg p-2 font-bold text-emerald-700" />
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-bold text-slate-500 uppercase">DMI kg/d</label>
+          <input type="number" step="0.1" value={dmi} onChange={(e) => setDmi(+e.target.value)} className="w-full bg-slate-50 border rounded-lg p-2 text-sm" />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-slate-500 uppercase">Dose g/d</label>
+          <input type="number" value={dose} onChange={(e) => setDose(+e.target.value)} className="w-full bg-emerald-50 border border-emerald-200 rounded-lg p-2 text-sm font-bold text-emerald-700" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-bold text-slate-500 uppercase">Carrier</label>
+          <select value={carrier} onChange={(e) => setCarrier(e.target.value)} className="w-full bg-slate-50 border rounded-lg p-2 text-sm">
+            {CARRIERS.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-slate-500 uppercase">Batch Size</label>
+          <select value={batchKg} onChange={(e) => setBatchKg(+e.target.value)} className="w-full bg-slate-50 border rounded-lg p-2 text-sm">
+            {BATCH_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+      </div>
+      {species === 'Beef' && (
+        <div className="pt-3 border-t space-y-2 text-sm">
+          <div className="font-semibold text-rose-700"><i className="fas fa-bullseye mr-1"></i>Meat Quality Targets</div>
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input type="checkbox" checked={marbling} onChange={(e) => setMarbling(e.target.checked)} className="mt-0.5" />
+            <span>
+              <b>Marbling (IMF)</b>
+              <span className="block text-[10px] text-slate-500">Vit A restriction during finishing; Cr + biotin boost for insulin sensitivity.</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input type="checkbox" checked={colorFocus} onChange={(e) => setColorFocus(e.target.checked)} className="mt-0.5" />
+            <span>
+              <b>Bright-red color</b>
+              <span className="block text-[10px] text-slate-500">Vit E ≥150 IU/kg DM, Se ≥0.30 mg/kg DM for oxymyoglobin stability.</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input type="checkbox" checked={shelfLife} onChange={(e) => setShelfLife(e.target.checked)} className="mt-0.5" />
+            <span>
+              <b>Extended shelf life</b>
+              <span className="block text-[10px] text-slate-500">Vit E ≥200 IU/kg DM, Fe/Cu capped to slow lipid oxidation in retail display.</span>
+            </span>
+          </label>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function CostHeadline({ calc, dose, fmt }) {
+  return (
+    <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-xl p-5 shadow">
+      <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Final premix cost</p>
+      <div className="text-3xl md:text-4xl font-black text-emerald-400 mt-1">{fmt(calc.totalCostPerTon)}</div>
+      <div className="text-xs text-slate-400 uppercase">per ton · {fmt(calc.totalCostPerDose, 4)} per {dose}g dose</div>
+      <div className="text-[10px] text-slate-500 mt-2">Active ingredients {calc.totalActiveG.toFixed(2)} g + carrier {calc.carrierG.toFixed(2)} g = {dose} g dose</div>
+    </div>
+  );
+}
+
+function RequirementsTable({ calc, dmi, adjustedReqs }) {
+  return (
+    <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
+      <div className="bg-slate-50 px-5 py-3 border-b">
+        <h3 className="font-bold text-slate-800">Daily Nutrient Requirements</h3>
+        <p className="text-xs text-slate-500">Per animal at {dmi} kg DMI
+          {adjustedReqs.notes.length > 0 && <span className="text-blue-600"> · {adjustedReqs.notes.length} adjustment(s) applied</span>}
+        </p>
+      </div>
+      <table className="w-full text-sm">
+        <thead className="text-[10px] uppercase text-slate-400 font-bold border-b">
+          <tr>
+            <th className="px-5 py-2 text-left">Nutrient</th>
+            <th className="px-5 py-2 text-right">Per kg DM</th>
+            <th className="px-5 py-2 text-right text-blue-600">Daily</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {calc.summary.map((s) => (
+            <tr key={s.key}>
+              <td className="px-5 py-2 font-medium">{s.label}</td>
+              <td className="px-5 py-2 text-right text-slate-500">{s.reqPerKgDm} <span className="text-[10px]">{s.unit}</span></td>
+              <td className="px-5 py-2 text-right font-bold text-blue-600">
+                {s.dailyTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                <span className="text-[10px] font-normal text-blue-400 ml-1">{s.unit}/d</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {adjustedReqs.notes.length > 0 && (
+        <div className="bg-blue-50 border-t p-3 text-xs">
+          <div className="font-bold text-blue-800 mb-1">Applied adjustments</div>
+          <ul className="text-blue-700 list-disc list-inside space-y-0.5">
+            {adjustedReqs.notes.map((n, i) => <li key={i}>{n}</li>)}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
