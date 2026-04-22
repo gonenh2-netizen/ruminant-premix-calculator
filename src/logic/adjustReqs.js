@@ -4,9 +4,10 @@
  *
  * Inputs:
  *   base = REQS[species].stages[stage] (object of nutrient → mg/IU per kg DM)
- *   nutrientOverrides: { [key]: { enabled: boolean, value: number|null } }
- *     enabled=false  → nutrient excluded from the premix (set to 0)
- *     value!=null    → use this per-kg-DM target instead of the NRC/adjusted one
+ *   nutrientOverrides: { [key]: { enabled: boolean, multiplier: number|null } }
+ *     enabled=false   → nutrient excluded from the premix (set to 0)
+ *     multiplier!=null → scale NRC/adjusted baseline by multiplier/100
+ *                        (100 = baseline, 120 = +20%, 80 = -20%, 0 = excluded)
  *
  * Returns: { base: adjusted requirements, notes: array of human-readable change explanations,
  *            defaults: the pre-override values (so the UI can show the NRC default) }
@@ -92,7 +93,7 @@ export function adjustReqs({ REQS, species, stage, breed, milkYield, marbling, c
   // surface the "NRC / adjusted default" alongside the user's override.
   const defaults = { ...base };
 
-  // Per-nutrient user overrides (exclude or numeric override)
+  // Per-nutrient user overrides (exclude or multiplier)
   const overridden = [];
   const excluded = [];
   for (const [k, ov] of Object.entries(nutrientOverrides)) {
@@ -102,9 +103,10 @@ export function adjustReqs({ REQS, species, stage, breed, milkYield, marbling, c
       excluded.push(k);
       continue;
     }
-    if (ov.value != null && isFinite(+ov.value)) {
-      base[k] = +ov.value;
-      if (+ov.value !== defaults[k]) overridden.push(k);
+    if (ov.multiplier != null && isFinite(+ov.multiplier)) {
+      const mult = Math.max(0, +ov.multiplier) / 100;
+      base[k] = (defaults[k] || 0) * mult;
+      if (+ov.multiplier !== 100) overridden.push(`${k} ${+ov.multiplier}%`);
     }
   }
   if (excluded.length) notes.push(`Excluded from premix: ${excluded.join(', ')}.`);
