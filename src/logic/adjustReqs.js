@@ -60,19 +60,34 @@ export function adjustReqs({ REQS, species, stage, breed, milkYield, marbling, c
     notes.push('Tropical / Bos indicus breed: Zn +15% (hoof integrity), Vit E +20% (heat-stress antioxidant), Vit A +10% (SEA forage variability).');
   }
 
-  // Beef meat-quality adjustments
+  // Meat-quality adjustments — Beef, Goat, and Sheep. Biology is shared across
+  // ruminant red meat (oxymyoglobin color chemistry, IMF via Vit A restriction),
+  // but stage names differ per species, so we map them explicitly.
   base.Cr = 0;
-  if (species === 'Beef') {
+  if (['Beef', 'Goat', 'Sheep'].includes(species)) {
+    // Stage sets that gate Marbling's Vit A swing: "finishing-like" restricts,
+    // "early growth" boosts to seed intramuscular adipocytes.
+    const finishingStages = {
+      Beef:  ['Finishing', 'Backgrounding'],
+      Goat:  ['Finishing'],
+      Sheep: ['Finishing'],
+    }[species];
+    const earlyGrowthStages = {
+      Beef:  ['Calf (Preweaning)', 'Growing / Stocker'],
+      Goat:  ['Growing Kid'],
+      Sheep: ['Growing Lamb'],
+    }[species];
+
     if (marbling) {
-      if (stage === 'Finishing' || stage === 'Backgrounding') {
+      if (finishingStages.includes(stage)) {
         base.VitA = Math.round(base.VitA * 0.50);
         base.Cr = 0.5;
         base.Biotin = 0.20;
-        notes.push('Marbling ON: Vit A restricted to ~50% (promotes IMF during finishing). Cr + biotin added.');
+        notes.push(`Marbling ON (${species} ${stage}): Vit A restricted to ~50% (promotes IMF). Cr + biotin added.`);
       }
-      if (stage === 'Calf (Preweaning)' || stage === 'Growing / Stocker') {
+      if (earlyGrowthStages.includes(stage)) {
         base.VitA = Math.round(base.VitA * 1.80);
-        notes.push('Marbling ON (early-life): Vit A boosted ~80% to seed intramuscular adipocytes.');
+        notes.push(`Marbling ON (${species} ${stage}, early-life): Vit A boosted ~80% to seed intramuscular adipocytes.`);
       }
     }
     if (colorFocus) {
@@ -84,6 +99,8 @@ export function adjustReqs({ REQS, species, stage, breed, milkYield, marbling, c
       base.VitE = Math.max(base.VitE, 200);
       base.Se = Math.max(base.Se, 0.30);
       base.Fe = Math.min(base.Fe, 40);
+      // Sheep already has a 15 mg/kg DM Cu toxicity ceiling; capping to 10 is
+      // stricter and safe. Other species just cap at 10.
       base.Cu = Math.min(base.Cu, 10);
       notes.push('Shelf life ON: Vit E ≥200 IU/kg DM, Se 0.30. Fe/Cu capped to slow lipid oxidation.');
     }

@@ -82,7 +82,7 @@ export const REQS = {
     },
     breeds: ['Saanen', 'Alpine', 'Toggenburg', 'Nubian', 'Boer', 'LaMancha', 'Kiko', 'Crossbred', 'Other'],
     hasMilkYield: true,
-    hasMeatQuality: false,
+    hasMeatQuality: true,
   },
 
   Sheep: {
@@ -96,7 +96,7 @@ export const REQS = {
     },
     breeds: ['Merino', 'Dorper', 'Suffolk', 'Hampshire', 'Rambouillet', 'East Friesian', 'Awassi', 'Lacaune', 'Crossbred', 'Other'],
     hasMilkYield: true,
-    hasMeatQuality: false,
+    hasMeatQuality: true,
     cuCeiling: 15, // sheep total-diet Cu ceiling in mg/kg DM
   },
 };

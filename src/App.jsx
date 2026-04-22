@@ -337,7 +337,7 @@ function AnimalProfile({
           </select>
         </div>
       </div>
-      {species === 'Beef' && (
+      {['Beef', 'Goat', 'Sheep'].includes(species) && (
         <div className="pt-3 border-t space-y-2 text-sm">
           <div className="font-semibold text-rose-700"><i className="fas fa-bullseye mr-1"></i>Meat Quality Targets</div>
           <label className="flex items-start gap-2 cursor-pointer">
