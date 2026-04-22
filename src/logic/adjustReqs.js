@@ -1,12 +1,18 @@
 /**
- * Apply species/stage-specific adjustments to baseline NRC/NASEM requirements.
- * Factors: milk yield, breed, beef quality toggles, tropical-breed climate.
+ * Apply species/stage-specific adjustments to baseline NRC/NASEM requirements,
+ * then apply per-nutrient user overrides (exclude or bump above/below baseline).
  *
- * Inputs: base = REQS[species].stages[stage] (object of nutrient → mg/IU per kg DM)
- * Returns: { base: adjusted requirements, notes: array of human-readable change explanations }
+ * Inputs:
+ *   base = REQS[species].stages[stage] (object of nutrient → mg/IU per kg DM)
+ *   nutrientOverrides: { [key]: { enabled: boolean, value: number|null } }
+ *     enabled=false  → nutrient excluded from the premix (set to 0)
+ *     value!=null    → use this per-kg-DM target instead of the NRC/adjusted one
+ *
+ * Returns: { base: adjusted requirements, notes: array of human-readable change explanations,
+ *            defaults: the pre-override values (so the UI can show the NRC default) }
  */
 
-export function adjustReqs({ REQS, species, stage, breed, milkYield, marbling, colorFocus, shelfLife }) {
+export function adjustReqs({ REQS, species, stage, breed, milkYield, marbling, colorFocus, shelfLife, nutrientOverrides = {} }) {
   const base = { ...REQS[species].stages[stage] };
   const notes = [];
 
@@ -82,5 +88,27 @@ export function adjustReqs({ REQS, species, stage, breed, milkYield, marbling, c
     }
   }
 
-  return { base, notes };
+  // Snapshot of the adjusted-but-not-yet-overridden values so the UI can
+  // surface the "NRC / adjusted default" alongside the user's override.
+  const defaults = { ...base };
+
+  // Per-nutrient user overrides (exclude or numeric override)
+  const overridden = [];
+  const excluded = [];
+  for (const [k, ov] of Object.entries(nutrientOverrides)) {
+    if (!ov) continue;
+    if (ov.enabled === false) {
+      base[k] = 0;
+      excluded.push(k);
+      continue;
+    }
+    if (ov.value != null && isFinite(+ov.value)) {
+      base[k] = +ov.value;
+      if (+ov.value !== defaults[k]) overridden.push(k);
+    }
+  }
+  if (excluded.length) notes.push(`Excluded from premix: ${excluded.join(', ')}.`);
+  if (overridden.length) notes.push(`User-overridden targets: ${overridden.join(', ')}.`);
+
+  return { base, notes, defaults };
 }

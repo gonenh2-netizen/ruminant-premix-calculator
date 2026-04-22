@@ -11,6 +11,7 @@ import { OrganicSourcesPanel } from './components/OrganicSourcesPanel.jsx';
 import { InorganicSourcesPanel } from './components/InorganicSourcesPanel.jsx';
 import { MineralDeliveryTable } from './components/MineralDeliveryTable.jsx';
 import { PrintableReport } from './components/PrintableReport.jsx';
+import { RequirementsTable } from './components/RequirementsTable.jsx';
 import { CustomProductModal } from './components/CustomProductModal.jsx';
 import { CustomProductsList } from './components/CustomProductsList.jsx';
 import { BioavailGuide } from './components/BioavailGuide.jsx';
@@ -77,6 +78,7 @@ export default function App() {
   const [organicSelections, setOrganicSelections] = useState(DEFAULT_STATE.organicSelections);
   const [inorgSrc, setInorgSrc] = useState(DEFAULT_STATE.inorgSrc);
   const [prices, setPrices] = useState(defaultPrices);
+  const [nutrientOverrides, setNutrientOverrides] = useState({});
   const [modalOpen, setModalOpen] = useState(false);
 
   const { customProducts, addCustom, removeCustom } = useCustomProducts();
@@ -90,8 +92,8 @@ export default function App() {
   }, [species]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const adjustedReqs = useMemo(
-    () => adjustReqs({ REQS, species, stage, breed, milkYield, marbling, colorFocus, shelfLife }),
-    [species, stage, breed, milkYield, marbling, colorFocus, shelfLife],
+    () => adjustReqs({ REQS, species, stage, breed, milkYield, marbling, colorFocus, shelfLife, nutrientOverrides }),
+    [species, stage, breed, milkYield, marbling, colorFocus, shelfLife, nutrientOverrides],
   );
 
   const calc = useMemo(
@@ -114,7 +116,7 @@ export default function App() {
   const currentState = {
     species, breed, stage, dmi, dose, milkYield, carrier, currency, batchKg,
     marbling, colorFocus, shelfLife,
-    organicSelections, inorgSrc, priceOverrides: prices,
+    organicSelections, inorgSrc, nutrientOverrides, priceOverrides: prices,
   };
 
   const loadFormulation = (s) => {
@@ -140,6 +142,7 @@ export default function App() {
       setOrganicSelections(migrated);
     }
     if (s.inorgSrc) setInorgSrc(s.inorgSrc);
+    setNutrientOverrides(s.nutrientOverrides || {});
     if (s.priceOverrides) setPrices((prev) => ({ ...prev, ...s.priceOverrides }));
   };
 
@@ -198,7 +201,11 @@ export default function App() {
             </div>
           )}
 
-          <RequirementsTable calc={calc} dmi={dmi} adjustedReqs={adjustedReqs} />
+          <RequirementsTable
+            calc={calc} dmi={dmi} adjustedReqs={adjustedReqs}
+            nutrientOverrides={nutrientOverrides}
+            setNutrientOverrides={setNutrientOverrides}
+          />
         </div>
       </div>
 
@@ -371,44 +378,3 @@ function CostHeadline({ calc, dose, fmt }) {
   );
 }
 
-function RequirementsTable({ calc, dmi, adjustedReqs }) {
-  return (
-    <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
-      <div className="bg-slate-50 px-5 py-3 border-b">
-        <h3 className="font-bold text-slate-800">Daily Nutrient Requirements</h3>
-        <p className="text-xs text-slate-500">Per animal at {dmi} kg DMI
-          {adjustedReqs.notes.length > 0 && <span className="text-blue-600"> · {adjustedReqs.notes.length} adjustment(s) applied</span>}
-        </p>
-      </div>
-      <table className="w-full text-sm">
-        <thead className="text-[10px] uppercase text-slate-400 font-bold border-b">
-          <tr>
-            <th className="px-5 py-2 text-left">Nutrient</th>
-            <th className="px-5 py-2 text-right">Per kg DM</th>
-            <th className="px-5 py-2 text-right text-blue-600">Daily</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y">
-          {calc.summary.map((s) => (
-            <tr key={s.key}>
-              <td className="px-5 py-2 font-medium">{s.label}</td>
-              <td className="px-5 py-2 text-right text-slate-500">{s.reqPerKgDm} <span className="text-[10px]">{s.unit}</span></td>
-              <td className="px-5 py-2 text-right font-bold text-blue-600">
-                {s.dailyTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                <span className="text-[10px] font-normal text-blue-400 ml-1">{s.unit}/d</span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {adjustedReqs.notes.length > 0 && (
-        <div className="bg-blue-50 border-t p-3 text-xs">
-          <div className="font-bold text-blue-800 mb-1">Applied adjustments</div>
-          <ul className="text-blue-700 list-disc list-inside space-y-0.5">
-            {adjustedReqs.notes.map((n, i) => <li key={i}>{n}</li>)}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}

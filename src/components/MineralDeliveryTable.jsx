@@ -29,21 +29,31 @@ export function MineralDeliveryTable({ calc }) {
           </thead>
           <tbody className="divide-y">
             {rows.map((r) => {
+              const excluded = r.required === 0;
               const balPct = r.required > 0 ? (r.balance / r.required) * 100 : 0;
-              const balCls = Math.abs(balPct) < 5
-                ? 'text-emerald-700'
-                : balPct < 0 ? 'text-rose-700' : 'text-amber-700';
+              const balCls = excluded
+                ? (r.total > 0.01 ? 'text-amber-700' : 'text-slate-400')
+                : Math.abs(balPct) < 5
+                  ? 'text-emerald-700'
+                  : balPct < 0 ? 'text-rose-700' : 'text-amber-700';
               return (
-                <tr key={r.mineral} className="hover:bg-slate-50">
-                  <td className="px-4 py-2 font-medium">{r.label}</td>
+                <tr key={r.mineral} className={excluded ? 'bg-slate-50 text-slate-500' : 'hover:bg-slate-50'}>
+                  <td className="px-4 py-2 font-medium">
+                    {r.label}
+                    {excluded && <span className="ml-2 text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold">EXCLUDED</span>}
+                  </td>
                   <td className="px-4 py-2 text-right font-mono text-xs">{fmt(r.required)}</td>
                   <td className="px-4 py-2 text-right font-mono text-xs text-amber-700">{fmt(r.ration)}</td>
                   <td className="px-4 py-2 text-right font-mono text-xs text-emerald-700">{fmt(r.premixOrganic)}</td>
                   <td className="px-4 py-2 text-right font-mono text-xs text-slate-700">{fmt(r.premixInorganic)}</td>
                   <td className="px-4 py-2 text-right font-mono text-xs font-bold">{fmt(r.total)}</td>
                   <td className={`px-4 py-2 text-right font-mono text-xs font-bold ${balCls}`}>
-                    {r.balance >= 0 ? '+' : ''}{fmt(r.balance)}
-                    {r.required > 0 && <span className="text-[10px] font-normal ml-1">({balPct >= 0 ? '+' : ''}{balPct.toFixed(0)}%)</span>}
+                    {excluded
+                      ? (r.total > 0.01 ? `+${fmt(r.total)} over target` : '—')
+                      : <>
+                          {r.balance >= 0 ? '+' : ''}{fmt(r.balance)}
+                          <span className="text-[10px] font-normal ml-1">({balPct >= 0 ? '+' : ''}{balPct.toFixed(0)}%)</span>
+                        </>}
                   </td>
                 </tr>
               );

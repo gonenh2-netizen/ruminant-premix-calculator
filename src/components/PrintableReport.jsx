@@ -101,19 +101,27 @@ export function PrintableReport({
                 </tr>
               </thead>
               <tbody>
-                {calc.mineralDelivery.map((r) => (
-                  <tr key={r.mineral} style={tbodyRowStyle}>
-                    <td style={tdLeft}>{r.label}</td>
-                    <td style={tdRight}>{fmtNum(r.required, 2)}</td>
-                    <td style={tdRight}>{fmtNum(r.ration, 2)}</td>
-                    <td style={tdRight}>{fmtNum(r.premixOrganic, 2)}</td>
-                    <td style={tdRight}>{fmtNum(r.premixInorganic, 2)}</td>
-                    <td style={tdRight}><b>{fmtNum(r.total, 2)}</b></td>
-                    <td style={{ ...tdRight, color: r.balance < 0 ? '#b91c1c' : '#065f46' }}>
-                      {r.balance >= 0 ? '+' : ''}{fmtNum(r.balance, 2)}
-                    </td>
-                  </tr>
-                ))}
+                {calc.mineralDelivery.map((r) => {
+                  const excluded = r.required === 0;
+                  return (
+                    <tr key={r.mineral} style={{ ...tbodyRowStyle, color: excluded ? '#888' : '#111' }}>
+                      <td style={tdLeft}>
+                        {r.label}
+                        {excluded && <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 4px', background: '#fee2e2', color: '#b91c1c', borderRadius: 3 }}>EXCLUDED</span>}
+                      </td>
+                      <td style={tdRight}>{fmtNum(r.required, 2)}</td>
+                      <td style={tdRight}>{fmtNum(r.ration, 2)}</td>
+                      <td style={tdRight}>{fmtNum(r.premixOrganic, 2)}</td>
+                      <td style={tdRight}>{fmtNum(r.premixInorganic, 2)}</td>
+                      <td style={tdRight}><b>{fmtNum(r.total, 2)}</b></td>
+                      <td style={{ ...tdRight, color: excluded ? (r.total > 0.01 ? '#92400e' : '#888') : (r.balance < 0 ? '#b91c1c' : '#065f46') }}>
+                        {excluded
+                          ? (r.total > 0.01 ? `+${fmtNum(r.total, 2)} over` : '—')
+                          : `${r.balance >= 0 ? '+' : ''}${fmtNum(r.balance, 2)}`}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </section>
