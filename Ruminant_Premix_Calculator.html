@@ -1,0 +1,1415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ruminant Vitamin & Mineral Premix Calculator</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- React & ReactDOM (multiple CDN fallbacks) -->
+  <script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/react@18.3.1/umd/react.production.min.js'" crossorigin></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js'" crossorigin></script>
+  <!-- Pre-compiled: no Babel runtime required -->
+
+  <style>
+    @media print {
+      body { background-color: white !important; }
+      .no-print { display: none !important; }
+      table { page-break-inside: auto; }
+      tr { page-break-inside: avoid; }
+    }
+    .tooltip-container { position: relative; }
+    .tooltip-container:hover .tooltip-pop { display: block; }
+    .tooltip-pop {
+      display: none; position: absolute; bottom: 125%; left: 0;
+      width: 260px; padding: 8px 10px; background: #1e293b; color: white;
+      font-size: 11px; line-height: 1.45; border-radius: 6px; z-index: 50;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-weight: normal; text-transform: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans">
+  <div id="root">
+    <div style="padding:40px; font-family: system-ui, -apple-system, sans-serif; color:#334155;">
+      <h1 style="font-size:22px; margin-bottom:8px;">Ruminant Vitamin & Mineral Premix Calculator</h1>
+      <p id="load-status" style="color:#64748b;">Loading React… if you see this message for more than a few seconds, there is a script-loading problem. Details will appear below.</p>
+      <pre id="load-diag" style="background:#f1f5f9; padding:12px; border-radius:8px; margin-top:12px; font-size:12px; white-space:pre-wrap; color:#334155;"></pre>
+    </div>
+  </div>
+
+  <script>
+  // Runtime diagnostics — surfaces problems directly in the page so we don't depend on devtools console.
+  (function(){
+    var diag = document.getElementById('load-diag');
+    function log(msg){ if (diag) diag.textContent += msg + '\n'; }
+    window.addEventListener('error', function(e){ log('[ERROR] ' + (e.message || e) + ' @ ' + (e.filename||'') + ':' + (e.lineno||'')); });
+    window.addEventListener('unhandledrejection', function(e){ log('[PROMISE REJECTION] ' + (e.reason && e.reason.message || e.reason)); });
+    log('User agent: ' + navigator.userAgent);
+    log('typeof React = ' + typeof React + '; typeof ReactDOM = ' + typeof ReactDOM);
+    if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
+      var status = document.getElementById('load-status');
+      if (status) status.textContent = 'React failed to load from the CDN. Open this file directly in a browser (double-click it in File Explorer) — the in-app preview may be blocking external scripts.';
+    }
+  })();
+  </script>
+  <script>
+"use strict";
+try {
+
+if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
+  throw new Error('React or ReactDOM did not load. Check your internet connection or CDN access.');
+}
+
+const {
+  useState,
+  useMemo,
+  useEffect
+} = React;
+
+/* ===================================================================
+   REQUIREMENT DATABASE
+   Dairy: NASEM 2021 (pulled from user's NotebookLM dairy notebook)
+   Goats: NRC 2007 Small Ruminants (pulled from user's NotebookLM)
+   Sheep: NRC 2007 Small Ruminants (from NotebookLM; Cu ceiling for sheep)
+   Beef : NRC 2016 Beef Cattle + peer-reviewed quality drivers
+   All values expressed per kg Dry Matter Intake (DMI)
+   mg/kg DM for minerals, IU/kg DM for fat-soluble vitamins
+=================================================================== */
+const REQS = {
+  Dairy: {
+    stages: {
+      // NASEM 2021 values via user's Dairy NotebookLM (89 sources). Vit A 9000 IU/kg for calves; 4400 for lactating; Vit D lactating 1100 IU/kg
+      'Calf (Preweaning)': {
+        Zn: 45,
+        Cu: 10,
+        Mn: 35,
+        Co: 0.15,
+        Se: 0.30,
+        I: 0.42,
+        Fe: 50,
+        VitA: 9000,
+        VitD: 660,
+        VitE: 50,
+        Biotin: 0
+      },
+      'Heifer (Growing)': {
+        Zn: 45,
+        Cu: 10,
+        Mn: 35,
+        Co: 0.15,
+        Se: 0.30,
+        I: 0.42,
+        Fe: 30,
+        VitA: 2500,
+        VitD: 300,
+        VitE: 30,
+        Biotin: 0
+      },
+      'Far-off Dry': {
+        Zn: 45,
+        Cu: 18,
+        Mn: 40,
+        Co: 0.20,
+        Se: 0.30,
+        I: 0.55,
+        Fe: 20,
+        VitA: 4400,
+        VitD: 1100,
+        VitE: 100,
+        Biotin: 0
+      },
+      'Close-up Dry': {
+        Zn: 55,
+        Cu: 18,
+        Mn: 45,
+        Co: 0.20,
+        Se: 0.30,
+        I: 0.55,
+        Fe: 20,
+        VitA: 4400,
+        VitD: 1100,
+        VitE: 210,
+        Biotin: 0
+      },
+      'Fresh / Early Lactation': {
+        Zn: 66,
+        Cu: 11,
+        Mn: 49,
+        Co: 0.20,
+        Se: 0.30,
+        I: 0.69,
+        Fe: 20,
+        VitA: 4400,
+        VitD: 1100,
+        VitE: 30,
+        Biotin: 0.85
+      },
+      'Mid Lactation': {
+        Zn: 60,
+        Cu: 10,
+        Mn: 45,
+        Co: 0.20,
+        Se: 0.30,
+        I: 0.55,
+        Fe: 18,
+        VitA: 4400,
+        VitD: 1100,
+        VitE: 30,
+        Biotin: 0.70
+      },
+      'Late Lactation': {
+        Zn: 55,
+        Cu: 10,
+        Mn: 40,
+        Co: 0.20,
+        Se: 0.30,
+        I: 0.50,
+        Fe: 18,
+        VitA: 4400,
+        VitD: 1100,
+        VitE: 30,
+        Biotin: 0.60
+      }
+    },
+    breeds: ['Holstein', 'Jersey', 'Brown Swiss', 'Guernsey', 'Crossbred', 'Other'],
+    hasMilkYield: true,
+    hasMeatQuality: false
+  },
+  Beef: {
+    // NRC 2016 values confirmed by user's SEA Beef NotebookLM (102 sources, "Beef Nutrition Strategies for Digestibility and Methane Reduction")
+    stages: {
+      'Calf (Preweaning)': {
+        Zn: 30,
+        Cu: 10,
+        Mn: 20,
+        Co: 0.15,
+        Se: 0.10,
+        I: 0.50,
+        Fe: 50,
+        VitA: 2200,
+        VitD: 275,
+        VitE: 30,
+        Biotin: 0
+      },
+      'Growing / Stocker': {
+        Zn: 30,
+        Cu: 10,
+        Mn: 20,
+        Co: 0.15,
+        Se: 0.10,
+        I: 0.50,
+        Fe: 50,
+        VitA: 2200,
+        VitD: 275,
+        VitE: 30,
+        Biotin: 0
+      },
+      'Stressed / Receiving': {
+        Zn: 30,
+        Cu: 10,
+        Mn: 20,
+        Co: 0.15,
+        Se: 0.10,
+        I: 0.50,
+        Fe: 50,
+        VitA: 5000,
+        VitD: 275,
+        VitE: 90,
+        Biotin: 0
+      },
+      'Backgrounding': {
+        Zn: 30,
+        Cu: 10,
+        Mn: 20,
+        Co: 0.15,
+        Se: 0.10,
+        I: 0.50,
+        Fe: 50,
+        VitA: 2200,
+        VitD: 275,
+        VitE: 40,
+        Biotin: 0
+      },
+      'Finishing': {
+        Zn: 30,
+        Cu: 10,
+        Mn: 20,
+        Co: 0.15,
+        Se: 0.10,
+        I: 0.50,
+        Fe: 50,
+        VitA: 2200,
+        VitD: 275,
+        VitE: 50,
+        Biotin: 0
+      },
+      'Gestating Cow': {
+        Zn: 30,
+        Cu: 10,
+        Mn: 40,
+        Co: 0.15,
+        Se: 0.10,
+        I: 0.50,
+        Fe: 50,
+        VitA: 2800,
+        VitD: 275,
+        VitE: 30,
+        Biotin: 0
+      },
+      'Lactating Cow': {
+        Zn: 30,
+        Cu: 10,
+        Mn: 40,
+        Co: 0.15,
+        Se: 0.10,
+        I: 0.50,
+        Fe: 50,
+        VitA: 3900,
+        VitD: 275,
+        VitE: 30,
+        Biotin: 0
+      }
+    },
+    // Breed list: Southeast-Asian / tropical breeds first (per user's beef NotebookLM focus), then temperate
+    breeds: ['Brahman', 'Thai Native (Kha-Korat)', 'Brahman × Charolais', 'Brahman × Angus', 'Droughtmaster', 'Bali Cattle', 'Kedah-Kelantan', 'Angus', 'Hereford', 'Wagyu', 'Charolais', 'Limousin', 'Simmental', 'Crossbred', 'Other'],
+    hasMilkYield: false,
+    hasMeatQuality: true
+  },
+  Goat: {
+    stages: {
+      'Growing Kid': {
+        Zn: 12,
+        Cu: 20,
+        Mn: 25,
+        Co: 0.10,
+        Se: 0.25,
+        I: 0.50,
+        Fe: 95,
+        VitA: 1700,
+        VitD: 600,
+        VitE: 30,
+        Biotin: 0
+      },
+      'Maintenance': {
+        Zn: 12,
+        Cu: 20,
+        Mn: 25,
+        Co: 0.10,
+        Se: 0.25,
+        I: 0.50,
+        Fe: 35,
+        VitA: 1455,
+        VitD: 500,
+        VitE: 25,
+        Biotin: 0
+      },
+      'Late Gestation': {
+        Zn: 20,
+        Cu: 20,
+        Mn: 25,
+        Co: 0.10,
+        Se: 0.25,
+        I: 0.50,
+        Fe: 40,
+        VitA: 2500,
+        VitD: 600,
+        VitE: 35,
+        Biotin: 0
+      },
+      'Early Lactation': {
+        Zn: 45,
+        Cu: 20,
+        Mn: 25,
+        Co: 0.10,
+        Se: 0.25,
+        I: 0.50,
+        Fe: 35,
+        VitA: 3800,
+        VitD: 650,
+        VitE: 40,
+        Biotin: 0
+      },
+      'Mid Lactation': {
+        Zn: 45,
+        Cu: 20,
+        Mn: 25,
+        Co: 0.10,
+        Se: 0.25,
+        I: 0.50,
+        Fe: 35,
+        VitA: 3500,
+        VitD: 600,
+        VitE: 30,
+        Biotin: 0
+      },
+      'Late Lactation': {
+        Zn: 45,
+        Cu: 20,
+        Mn: 25,
+        Co: 0.10,
+        Se: 0.25,
+        I: 0.50,
+        Fe: 35,
+        VitA: 3000,
+        VitD: 600,
+        VitE: 30,
+        Biotin: 0
+      },
+      'Finishing': {
+        Zn: 12,
+        Cu: 20,
+        Mn: 25,
+        Co: 0.10,
+        Se: 0.25,
+        I: 0.50,
+        Fe: 35,
+        VitA: 1500,
+        VitD: 500,
+        VitE: 25,
+        Biotin: 0
+      }
+    },
+    breeds: ['Saanen', 'Alpine', 'Toggenburg', 'Nubian', 'Boer', 'LaMancha', 'Kiko', 'Crossbred', 'Other'],
+    hasMilkYield: true,
+    hasMeatQuality: false
+  },
+  Sheep: {
+    stages: {
+      'Growing Lamb': {
+        Zn: 33,
+        Cu: 7,
+        Mn: 25,
+        Co: 0.11,
+        Se: 0.20,
+        I: 0.50,
+        Fe: 50,
+        VitA: 1235,
+        VitD: 555,
+        VitE: 20,
+        Biotin: 0
+      },
+      'Maintenance': {
+        Zn: 33,
+        Cu: 7,
+        Mn: 25,
+        Co: 0.11,
+        Se: 0.20,
+        I: 0.50,
+        Fe: 40,
+        VitA: 2677,
+        VitD: 555,
+        VitE: 15,
+        Biotin: 0
+      },
+      'Late Gestation': {
+        Zn: 33,
+        Cu: 7,
+        Mn: 25,
+        Co: 0.11,
+        Se: 0.20,
+        I: 0.50,
+        Fe: 45,
+        VitA: 3048,
+        VitD: 555,
+        VitE: 15,
+        Biotin: 0
+      },
+      'Early Lactation': {
+        Zn: 38,
+        Cu: 7,
+        Mn: 30,
+        Co: 0.11,
+        Se: 0.25,
+        I: 0.50,
+        Fe: 40,
+        VitA: 2384,
+        VitD: 555,
+        VitE: 15,
+        Biotin: 0
+      },
+      'Mid/Late Lactation': {
+        Zn: 33,
+        Cu: 7,
+        Mn: 25,
+        Co: 0.11,
+        Se: 0.20,
+        I: 0.50,
+        Fe: 40,
+        VitA: 2400,
+        VitD: 555,
+        VitE: 15,
+        Biotin: 0
+      },
+      'Finishing': {
+        Zn: 33,
+        Cu: 7,
+        Mn: 25,
+        Co: 0.11,
+        Se: 0.20,
+        I: 0.50,
+        Fe: 40,
+        VitA: 1274,
+        VitD: 555,
+        VitE: 15,
+        Biotin: 0
+      }
+    },
+    breeds: ['Merino', 'Dorper', 'Suffolk', 'Hampshire', 'Rambouillet', 'East Friesian', 'Awassi', 'Lacaune', 'Crossbred', 'Other'],
+    hasMilkYield: true,
+    hasMeatQuality: false,
+    cuCeiling: 15 // sheep copper ceiling — warn above 15 mg/kg DM total diet
+  }
+};
+
+/* ===================================================================
+   RAW MATERIAL DATABASE
+   purity = fraction of active element per gram of product
+   defaultPrice = USD per kg (editable by user)
+   Prices are typical 2025 market values and are USER-EDITABLE.
+=================================================================== */
+const SOURCES = {
+  Zn: {
+    inorg: {
+      name: 'Zinc Oxide (72%)',
+      purity: 0.72,
+      defaultPrice: 3.50
+    },
+    org: {
+      name: 'Zinc Glycinate',
+      purity: 0.15,
+      defaultPrice: 14.00
+    }
+  },
+  Cu: {
+    inorg: {
+      name: 'Copper Sulfate (25%)',
+      purity: 0.25,
+      defaultPrice: 7.50
+    },
+    org: {
+      name: 'Copper Proteinate',
+      purity: 0.10,
+      defaultPrice: 18.00
+    }
+  },
+  Mn: {
+    inorg: {
+      name: 'Manganese Oxide (60%)',
+      purity: 0.60,
+      defaultPrice: 2.80
+    },
+    org: {
+      name: 'Manganese Amino Acid',
+      purity: 0.15,
+      defaultPrice: 13.00
+    }
+  },
+  Co: {
+    inorg: {
+      name: 'Cobalt Carbonate (46%)',
+      purity: 0.46,
+      defaultPrice: 45.00
+    },
+    org: {
+      name: 'Cobalt Glucoheptonate',
+      purity: 0.01,
+      defaultPrice: 80.00
+    }
+  },
+  Se: {
+    inorg: {
+      name: 'Sodium Selenite (45%)',
+      purity: 0.45,
+      defaultPrice: 55.00
+    },
+    org: {
+      name: 'Selenium Yeast (0.2%)',
+      purity: 0.002,
+      defaultPrice: 45.00
+    }
+  },
+  I: {
+    inorg: {
+      name: 'Potassium Iodide (68%)',
+      purity: 0.68,
+      defaultPrice: 85.00
+    },
+    org: {
+      name: 'EDDI (80%)',
+      purity: 0.80,
+      defaultPrice: 90.00
+    }
+  },
+  Fe: {
+    inorg: {
+      name: 'Ferrous Sulfate (30%)',
+      purity: 0.30,
+      defaultPrice: 1.80
+    },
+    org: {
+      name: 'Iron Glycinate',
+      purity: 0.15,
+      defaultPrice: 11.00
+    }
+  },
+  VitA: {
+    name: 'Vitamin A 500,000 IU/g',
+    potency: 500000,
+    unit: 'IU/g',
+    defaultPrice: 25.00
+  },
+  VitD: {
+    name: 'Vitamin D3 500,000 IU/g',
+    potency: 500000,
+    unit: 'IU/g',
+    defaultPrice: 28.00
+  },
+  VitE: {
+    name: 'Vitamin E 50% (500 IU/g)',
+    potency: 500,
+    unit: 'IU/g',
+    defaultPrice: 18.00
+  },
+  Biotin: {
+    name: 'Biotin 2% feed grade',
+    potency: 20,
+    unit: 'mg/g',
+    defaultPrice: 60.00
+  },
+  Cr: {
+    name: 'Chromium Propionate (0.04%)',
+    potency: 0.4,
+    unit: 'mg/g',
+    defaultPrice: 120.00
+  },
+  // for beef marbling
+  Carrier_Limestone: {
+    name: 'Limestone (Carrier)',
+    defaultPrice: 0.15
+  },
+  Carrier_WheatMiddlings: {
+    name: 'Wheat Middlings (Carrier)',
+    defaultPrice: 0.28
+  },
+  Carrier_RiceHulls: {
+    name: 'Rice Hulls (Carrier)',
+    defaultPrice: 0.18
+  }
+};
+const MINERAL_KEYS = ['Zn', 'Cu', 'Mn', 'Co', 'Se', 'I', 'Fe'];
+const VITAMIN_KEYS = ['VitA', 'VitD', 'VitE', 'Biotin'];
+const CURRENCIES = {
+  USD: {
+    symbol: '$',
+    rate: 1.00,
+    label: 'US Dollar'
+  },
+  EUR: {
+    symbol: '€',
+    rate: 0.92,
+    label: 'Euro'
+  },
+  ILS: {
+    symbol: '₪',
+    rate: 3.70,
+    label: 'Israeli Shekel'
+  },
+  GBP: {
+    symbol: '£',
+    rate: 0.79,
+    label: 'British Pound'
+  },
+  VND: {
+    symbol: '₫',
+    rate: 25400,
+    label: 'Vietnamese Dong'
+  },
+  AZN: {
+    symbol: '₼',
+    rate: 1.70,
+    label: 'Azerbaijani Manat'
+  },
+  IDR: {
+    symbol: 'Rp',
+    rate: 16400,
+    label: 'Indonesian Rupiah'
+  }
+};
+const NUTRIENT_LABELS = {
+  Zn: 'Zinc',
+  Cu: 'Copper',
+  Mn: 'Manganese',
+  Co: 'Cobalt',
+  Se: 'Selenium',
+  I: 'Iodine',
+  Fe: 'Iron',
+  VitA: 'Vitamin A',
+  VitD: 'Vitamin D3',
+  VitE: 'Vitamin E',
+  Biotin: 'Biotin',
+  Cr: 'Chromium'
+};
+
+/* ===================================================================
+   COMPONENT
+=================================================================== */
+const App = () => {
+  const [species, setSpecies] = useState('Dairy');
+  const [breed, setBreed] = useState('Holstein');
+  const [stage, setStage] = useState('Fresh / Early Lactation');
+  const [dmi, setDmi] = useState(24);
+  const [dose, setDose] = useState(100);
+  const [milkYield, setMilkYield] = useState(35); // kg/day (dairy), goat ~3, sheep ~2
+  const [carrier, setCarrier] = useState('Carrier_Limestone');
+  const [currency, setCurrency] = useState('USD');
+
+  // Beef quality toggles
+  const [marbling, setMarbling] = useState(false);
+  const [colorFocus, setColorFocus] = useState(false);
+  const [shelfLife, setShelfLife] = useState(false);
+
+  // Organic inclusion per mineral
+  const [organicPct, setOrganicPct] = useState({
+    Zn: 30,
+    Cu: 30,
+    Mn: 20,
+    Co: 100,
+    Se: 100,
+    I: 0,
+    Fe: 0
+  });
+  // Ingredient exclusions (e.g., farm adds them separately)
+  const [excluded, setExcluded] = useState({});
+  // Editable prices (per kg, in USD baseline; UI will convert)
+  const [prices, setPrices] = useState(() => {
+    const p = {};
+    Object.entries(SOURCES).forEach(([k, v]) => {
+      if (v.defaultPrice !== undefined) p[k] = v.defaultPrice;
+      if (v.inorg) p[`${k}_inorg`] = v.inorg.defaultPrice;
+      if (v.org) p[`${k}_org`] = v.org.defaultPrice;
+    });
+    return p;
+  });
+
+  // When species changes, reset stage/breed to valid defaults
+  useEffect(() => {
+    const st = Object.keys(REQS[species].stages);
+    if (!st.includes(stage)) setStage(st[0]);
+    const br = REQS[species].breeds;
+    if (!br.includes(breed)) setBreed(br[0]);
+  }, [species]);
+
+  // Compute adjusted requirements based on species, stage, milk yield, beef quality
+  const adjustedReqs = useMemo(() => {
+    const base = {
+      ...REQS[species].stages[stage]
+    };
+    const notes = [];
+
+    // Milk yield adjustment (dairy, goat, sheep)
+    if (REQS[species].hasMilkYield && stage.toLowerCase().includes('lactation')) {
+      let baseYield = 30;
+      if (species === 'Goat') baseYield = 3;
+      if (species === 'Sheep') baseYield = 1.5;
+      const yieldRatio = milkYield / baseYield;
+      if (yieldRatio > 1.1) {
+        const bump = Math.min(0.35, (yieldRatio - 1) * 0.5);
+        base.Zn = Math.round(base.Zn * (1 + bump));
+        base.Cu = Math.round(base.Cu * (1 + bump * 0.3));
+        base.Se = +(base.Se * (1 + bump * 0.5)).toFixed(2);
+        base.VitE = Math.round(base.VitE * (1 + bump * 0.5));
+        base.Biotin = +(base.Biotin * (1 + bump * 0.5)).toFixed(2);
+        notes.push(`High yield (${milkYield} kg/d) → Zn, Cu, Se, Vit E, Biotin raised proportionally.`);
+      } else if (yieldRatio < 0.9 && yieldRatio > 0) {
+        const trim = Math.min(0.25, (1 - yieldRatio) * 0.3);
+        base.Zn = Math.round(base.Zn * (1 - trim));
+        base.VitE = Math.round(base.VitE * (1 - trim * 0.5));
+        notes.push(`Below-average yield (${milkYield} kg/d) → Zn, Vit E trimmed.`);
+      }
+    }
+
+    // Breed-specific small tweaks
+    if (species === 'Dairy') {
+      if (breed === 'Jersey' || breed === 'Guernsey') {
+        base.VitA = Math.round(base.VitA * 1.05);
+        notes.push('Jersey/Guernsey: slightly elevated Vit A (higher butterfat milk).');
+      }
+    }
+    if (species === 'Sheep' && (breed === 'East Friesian' || breed === 'Awassi' || breed === 'Lacaune')) {
+      base.Zn = Math.round(base.Zn * 1.10);
+      base.VitE = Math.round(base.VitE * 1.20);
+      notes.push('Dairy sheep breed: Zn and Vit E raised for milk production support.');
+    }
+    if (species === 'Beef' && breed === 'Wagyu') {
+      // Wagyu benefits from restricted Vit A during finishing + chromium for marbling
+      if (stage === 'Finishing') {
+        notes.push('Wagyu finishing: extra marbling support recommended (toggle Marbling).');
+      }
+    }
+    // Tropical / Bos indicus breeds — lower metabolic heat tolerance, but need higher Zn for hoof health in humid climates
+    if (species === 'Beef' && (breed === 'Brahman' || breed === 'Thai Native (Kha-Korat)' || breed === 'Bali Cattle' || breed === 'Kedah-Kelantan' || breed.startsWith('Brahman ×') || breed === 'Droughtmaster')) {
+      base.Zn = Math.round(base.Zn * 1.15);
+      base.VitE = Math.round(base.VitE * 1.20);
+      base.VitA = Math.round(base.VitA * 1.10);
+      notes.push('Tropical / Bos indicus breed: Zn +15% (hoof integrity in humid climates), Vit E +20% (heat-stress antioxidant), Vit A +10% (greater green-forage variability in SEA).');
+    }
+
+    // Beef quality adjustments (finishing stage primarily)
+    base.Cr = 0;
+    if (species === 'Beef') {
+      if (marbling) {
+        if (stage === 'Finishing' || stage === 'Backgrounding') {
+          base.VitA = Math.round(base.VitA * 0.50); // restrict Vit A to promote IMF
+          base.Cr = 0.5; // mg/kg DM chromium
+          base.Biotin = 0.20;
+          notes.push('Marbling ON: Vit A restricted to ~50% (promotes intramuscular fat during finishing). Chromium + biotin added.');
+        }
+        if (stage === 'Calf (Preweaning)' || stage === 'Growing / Stocker') {
+          base.VitA = Math.round(base.VitA * 1.80); // high early-life Vit A primes adipocytes
+          notes.push('Marbling ON (early-life): Vit A boosted ~80% to seed intramuscular adipocytes.');
+        }
+      }
+      if (colorFocus) {
+        base.VitE = Math.max(base.VitE, 150);
+        base.Se = Math.max(base.Se, 0.30);
+        notes.push('Meat color ON: Vit E raised to ≥150 IU/kg DM; Se raised to ≥0.30 mg/kg DM (antioxidant protection of oxymyoglobin).');
+      }
+      if (shelfLife) {
+        base.VitE = Math.max(base.VitE, 200);
+        base.Se = Math.max(base.Se, 0.30);
+        base.Fe = Math.min(base.Fe, 40);
+        base.Cu = Math.min(base.Cu, 10);
+        notes.push('Shelf life ON: Vit E ≥200 IU/kg DM + Se 0.30 mg/kg DM. Fe and Cu capped to slow lipid oxidation in the display case.');
+      }
+    }
+    return {
+      base,
+      notes
+    };
+  }, [species, stage, breed, milkYield, marbling, colorFocus, shelfLife]);
+
+  // Calculate formulation
+  const calc = useMemo(() => {
+    const reqs = adjustedReqs.base;
+    const ingredients = [];
+    let totalActiveG = 0;
+    let totalCostPerDose = 0; // in USD
+
+    const currencyObj = CURRENCIES[currency];
+    const price = k => prices[k] || 0;
+
+    // Minerals
+    MINERAL_KEYS.forEach(key => {
+      const dailyMg = reqs[key] * dmi; // mg/day
+      const orgFrac = (organicPct[key] || 0) / 100;
+      const inorgFrac = 1 - orgFrac;
+
+      // Organic
+      if (orgFrac > 0 && SOURCES[key].org) {
+        const src = SOURCES[key].org;
+        const prodG = dailyMg * orgFrac / 1000 / src.purity;
+        const ingKey = `${key}_org`;
+        const excludedFlag = !!excluded[src.name];
+        if (!excludedFlag) totalActiveG += prodG;
+        const costDose = prodG * price(ingKey) / 1000; // g * $/kg / 1000 = $
+        if (!excludedFlag) totalCostPerDose += costDose;
+        ingredients.push({
+          key: ingKey,
+          name: src.name,
+          nutrient: key,
+          type: 'Organic',
+          perDoseG: excludedFlag ? 0 : prodG,
+          perTonKg: excludedFlag ? 0 : prodG / dose * 1000,
+          pricePerKg: price(ingKey),
+          costPerDose: excludedFlag ? 0 : costDose,
+          excluded: excludedFlag
+        });
+      }
+      // Inorganic
+      if (inorgFrac > 0 && SOURCES[key].inorg) {
+        const src = SOURCES[key].inorg;
+        const prodG = dailyMg * inorgFrac / 1000 / src.purity;
+        const ingKey = `${key}_inorg`;
+        const excludedFlag = !!excluded[src.name];
+        if (!excludedFlag) totalActiveG += prodG;
+        const costDose = prodG * price(ingKey) / 1000;
+        if (!excludedFlag) totalCostPerDose += costDose;
+        ingredients.push({
+          key: ingKey,
+          name: src.name,
+          nutrient: key,
+          type: 'Inorganic',
+          perDoseG: excludedFlag ? 0 : prodG,
+          perTonKg: excludedFlag ? 0 : prodG / dose * 1000,
+          pricePerKg: price(ingKey),
+          costPerDose: excludedFlag ? 0 : costDose,
+          excluded: excludedFlag
+        });
+      }
+    });
+
+    // Vitamins
+    VITAMIN_KEYS.forEach(key => {
+      const req = reqs[key] || 0;
+      if (req <= 0) return;
+      const daily = req * dmi; // IU/day or mg/day
+      const src = SOURCES[key];
+      const prodG = daily / src.potency;
+      const excludedFlag = !!excluded[src.name];
+      if (!excludedFlag) totalActiveG += prodG;
+      const costDose = prodG * price(key) / 1000;
+      if (!excludedFlag) totalCostPerDose += costDose;
+      ingredients.push({
+        key,
+        name: src.name,
+        nutrient: key,
+        type: 'Vitamin',
+        perDoseG: excludedFlag ? 0 : prodG,
+        perTonKg: excludedFlag ? 0 : prodG / dose * 1000,
+        pricePerKg: price(key),
+        costPerDose: excludedFlag ? 0 : costDose,
+        excluded: excludedFlag
+      });
+    });
+
+    // Chromium (beef marbling)
+    if (reqs.Cr && reqs.Cr > 0) {
+      const src = SOURCES.Cr;
+      const prodG = reqs.Cr * dmi / src.potency; // mg/day ÷ (mg/g)
+      const excludedFlag = !!excluded[src.name];
+      if (!excludedFlag) totalActiveG += prodG;
+      const costDose = prodG * price('Cr') / 1000;
+      if (!excludedFlag) totalCostPerDose += costDose;
+      ingredients.push({
+        key: 'Cr',
+        name: src.name,
+        nutrient: 'Cr',
+        type: 'Vitamin',
+        perDoseG: excludedFlag ? 0 : prodG,
+        perTonKg: excludedFlag ? 0 : prodG / dose * 1000,
+        pricePerKg: price('Cr'),
+        costPerDose: excludedFlag ? 0 : costDose,
+        excluded: excludedFlag
+      });
+    }
+
+    // Carrier
+    const carrierG = Math.max(0, dose - totalActiveG);
+    const carrierCostPerDose = carrierG * price(carrier) / 1000;
+    totalCostPerDose += carrierCostPerDose;
+
+    // Format summary
+    const summary = [];
+    [...MINERAL_KEYS, ...VITAMIN_KEYS].forEach(key => {
+      const v = reqs[key];
+      if (v === undefined || v === null) return;
+      const unit = MINERAL_KEYS.includes(key) ? 'mg' : key === 'Biotin' ? 'mg' : 'IU';
+      summary.push({
+        key,
+        label: NUTRIENT_LABELS[key] || key,
+        unit,
+        reqPerKgDm: v,
+        dailyTotal: v * dmi
+      });
+    });
+    if (reqs.Cr > 0) summary.push({
+      key: 'Cr',
+      label: 'Chromium',
+      unit: 'mg',
+      reqPerKgDm: reqs.Cr,
+      dailyTotal: reqs.Cr * dmi
+    });
+    return {
+      ingredients,
+      summary,
+      carrierG,
+      carrierCostPerDose,
+      totalActiveG,
+      totalCostPerDose,
+      // USD
+      totalCostPerTon: totalCostPerDose * (1000000 / dose),
+      // per-dose * (1,000,000 g / dose g) = per-ton in $
+      currencyObj
+    };
+  }, [adjustedReqs, dmi, dose, organicPct, excluded, prices, carrier, currency]);
+  const sp = REQS[species];
+  const stageOptions = Object.keys(sp.stages);
+  const toggleExcluded = name => setExcluded(prev => ({
+    ...prev,
+    [name]: !prev[name]
+  }));
+  const setOrganicFor = (key, v) => setOrganicPct(prev => ({
+    ...prev,
+    [key]: +v
+  }));
+  const setPriceFor = (key, v) => setPrices(prev => ({
+    ...prev,
+    [key]: +v || 0
+  }));
+
+  // Currency conversion for display
+  const fmtCost = usd => {
+    const c = CURRENCIES[currency];
+    const val = usd * c.rate;
+    return `${c.symbol}${val.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4
+    })}`;
+  };
+  const fmtCostBig = usd => {
+    const c = CURRENCIES[currency];
+    const val = usd * c.rate;
+    return `${c.symbol}${val.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
+  };
+  const exportCSV = () => {
+    let csv = 'RUMINANT PREMIX FORMULATION REPORT\n\n';
+    csv += `Species,${species}\nBreed,${breed}\nStage,${stage}\n`;
+    if (sp.hasMilkYield && stage.toLowerCase().includes('lactation')) csv += `Milk Yield (kg/d),${milkYield}\n`;
+    csv += `DMI (kg/d),${dmi}\nDose (g/head/d),${dose}\nCarrier,${SOURCES[carrier].name}\nCurrency,${currency}\n\n`;
+    if (species === 'Beef') {
+      csv += `Marbling Focus,${marbling}\nMeat Color Focus,${colorFocus}\nShelf Life Focus,${shelfLife}\n\n`;
+    }
+    csv += 'DAILY NUTRIENT REQUIREMENT (per head)\nNutrient,Per kg DM,Unit,Daily Total,Unit\n';
+    calc.summary.forEach(s => {
+      csv += `${s.label},${s.reqPerKgDm},${s.unit}/kg DM,${s.dailyTotal.toFixed(3)},${s.unit}/day\n`;
+    });
+    csv += '\nBATCH FORMULA (PER 1 TON = 1000 kg)\nIngredient,Type,Nutrient,g per Dose,kg per Ton,Price per kg (USD base),Cost per Dose (USD)\n';
+    calc.ingredients.filter(i => !i.excluded).forEach(i => {
+      csv += `"${i.name}",${i.type},${i.nutrient},${i.perDoseG.toFixed(4)},${i.perTonKg.toFixed(3)},${i.pricePerKg.toFixed(2)},${i.costPerDose.toFixed(5)}\n`;
+    });
+    csv += `"${SOURCES[carrier].name}",Carrier,—,${calc.carrierG.toFixed(3)},${(calc.carrierG / dose * 1000).toFixed(3)},${prices[carrier].toFixed(2)},${calc.carrierCostPerDose.toFixed(5)}\n`;
+    csv += `TOTAL,,,${dose},1000.000,,${calc.totalCostPerDose.toFixed(5)}\n\n`;
+    csv += `SUMMARY COSTS (${currency})\nCost per dose (${dose}g),${fmtCostBig(calc.totalCostPerDose)}\nCost per ton,${fmtCostBig(calc.totalCostPerTon)}\nCost per animal per day,${fmtCostBig(calc.totalCostPerDose)}\n`;
+    const blob = new Blob([csv], {
+      type: 'text/csv;charset=utf-8;'
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Premix_${species}_${stage.replace(/[^A-Za-z0-9]/g, '_')}.csv`;
+    link.click();
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "min-h-screen p-4 md:p-6"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "max-w-7xl mx-auto"
+  }, /*#__PURE__*/React.createElement("header", {
+    className: "flex flex-col md:flex-row md:items-center justify-between mb-6 gap-3"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", {
+    className: "text-2xl md:text-3xl font-bold text-slate-900 flex items-center gap-3"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-flask-vial text-emerald-600"
+  }), "Ruminant Vitamin & Mineral Premix Calculator"), /*#__PURE__*/React.createElement("p", {
+    className: "text-slate-500 text-sm mt-1"
+  }, "Dairy \u2022 Beef \u2022 Goats \u2022 Sheep \u2014 with live pricing and beef-quality adjustments")), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("select", {
+    value: currency,
+    onChange: e => setCurrency(e.target.value),
+    className: "bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm font-semibold"
+  }, Object.entries(CURRENCIES).map(([k, v]) => /*#__PURE__*/React.createElement("option", {
+    key: k,
+    value: k
+  }, v.symbol, " ", k))), /*#__PURE__*/React.createElement("button", {
+    onClick: exportCSV,
+    className: "bg-slate-900 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:bg-black transition"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-download"
+  }), " Export CSV"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => window.print(),
+    className: "bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:bg-slate-50 transition"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-print"
+  }), " Print"))), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl border border-slate-200 mb-5 p-2 flex gap-1 shadow-sm overflow-x-auto"
+  }, Object.keys(REQS).map(s => /*#__PURE__*/React.createElement("button", {
+    key: s,
+    onClick: () => setSpecies(s),
+    className: `flex-1 min-w-[110px] px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition ${species === s ? 'bg-emerald-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'}`
+  }, /*#__PURE__*/React.createElement("i", {
+    className: `fas ${s === 'Dairy' ? 'fa-cow' : s === 'Beef' ? 'fa-drumstick-bite' : s === 'Goat' ? 'fa-otter' : 'fa-sheep'} opacity-80`
+  }), s))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-1 xl:grid-cols-12 gap-5"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "xl:col-span-4 space-y-4"
+  }, /*#__PURE__*/React.createElement("section", {
+    className: "bg-white rounded-xl shadow-sm border border-slate-200 p-5"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "font-semibold flex items-center gap-2 mb-4 pb-2 border-b"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-sliders text-blue-500"
+  }), " Animal Profile"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-bold text-slate-500 uppercase"
+  }, "Breed"), /*#__PURE__*/React.createElement("select", {
+    value: breed,
+    onChange: e => setBreed(e.target.value),
+    className: "w-full mt-1 bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm"
+  }, sp.breeds.map(b => /*#__PURE__*/React.createElement("option", {
+    key: b,
+    value: b
+  }, b)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-bold text-slate-500 uppercase"
+  }, species === 'Beef' ? 'Age / Production Phase' : 'Stage / Lactation Phase'), /*#__PURE__*/React.createElement("select", {
+    value: stage,
+    onChange: e => setStage(e.target.value),
+    className: "w-full mt-1 bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm"
+  }, stageOptions.map(s => /*#__PURE__*/React.createElement("option", {
+    key: s,
+    value: s
+  }, s)))), sp.hasMilkYield && stage.toLowerCase().includes('lactation') && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-bold text-slate-500 uppercase"
+  }, "Milk Yield (kg/head/day) ", /*#__PURE__*/React.createElement("span", {
+    className: "text-slate-400 normal-case"
+  }, species === 'Goat' ? ' — typical 2–5 kg' : species === 'Sheep' ? ' — typical 0.5–3 kg' : ' — typical 20–50 kg')), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    step: "0.1",
+    value: milkYield,
+    onChange: e => setMilkYield(+e.target.value),
+    className: "w-full mt-1 bg-emerald-50 border border-emerald-200 rounded-lg p-2 text-sm font-bold text-emerald-700"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-3"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-bold text-slate-500 uppercase flex items-center gap-1"
+  }, "DMI (kg/day)", /*#__PURE__*/React.createElement("span", {
+    className: "tooltip-container"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-info-circle text-blue-400 cursor-help"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "tooltip-pop"
+  }, "Dry Matter Intake. All nutrient targets are expressed per kg DM, so DMI \xD7 target = animal's daily requirement."))), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    step: "0.1",
+    value: dmi,
+    onChange: e => setDmi(+e.target.value),
+    className: "w-full mt-1 bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm"
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-bold text-slate-500 uppercase"
+  }, "Dose (g/head/d)"), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    value: dose,
+    onChange: e => setDose(+e.target.value),
+    className: "w-full mt-1 bg-emerald-50 border border-emerald-200 rounded-lg p-2 text-sm font-bold text-emerald-700"
+  }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-bold text-slate-500 uppercase"
+  }, "Carrier"), /*#__PURE__*/React.createElement("select", {
+    value: carrier,
+    onChange: e => setCarrier(e.target.value),
+    className: "w-full mt-1 bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "Carrier_Limestone"
+  }, "Limestone"), /*#__PURE__*/React.createElement("option", {
+    value: "Carrier_WheatMiddlings"
+  }, "Wheat Middlings"), /*#__PURE__*/React.createElement("option", {
+    value: "Carrier_RiceHulls"
+  }, "Rice Hulls"))))), species === 'Beef' && /*#__PURE__*/React.createElement("section", {
+    className: "bg-white rounded-xl shadow-sm border border-slate-200 p-5"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "font-semibold flex items-center gap-2 mb-4 pb-2 border-b"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-drumstick-bite text-rose-500"
+  }), " Meat Quality Targets"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3 text-sm"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "flex items-start gap-3 cursor-pointer"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: marbling,
+    onChange: e => setMarbling(e.target.checked),
+    className: "w-5 h-5 mt-0.5 accent-rose-500"
+  }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-slate-800 flex items-center gap-1"
+  }, "Marbling (intramuscular fat)", /*#__PURE__*/React.createElement("span", {
+    className: "tooltip-container"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-info-circle text-rose-400 cursor-help"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "tooltip-pop"
+  }, "Early life (calf/growing): Vit A boosted to seed intramuscular adipocytes. Finishing: Vit A restricted ~50% + Chromium + Biotin added (Betaine-Biotin-Chromium synergy for IMF deposition)."))), /*#__PURE__*/React.createElement("p", {
+    className: "text-slate-500 text-xs"
+  }, "Vit A cycling + chromium + biotin"))), /*#__PURE__*/React.createElement("label", {
+    className: "flex items-start gap-3 cursor-pointer"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: colorFocus,
+    onChange: e => setColorFocus(e.target.checked),
+    className: "w-5 h-5 mt-0.5 accent-rose-500"
+  }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-slate-800 flex items-center gap-1"
+  }, "Bright red steak color", /*#__PURE__*/React.createElement("span", {
+    className: "tooltip-container"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-info-circle text-rose-400 cursor-help"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "tooltip-pop"
+  }, "Vit E \u2265150 IU/kg DM + Se \u22650.30 mg/kg DM protects oxymyoglobin from oxidation to brown metmyoglobin, preserving bright red retail color."))), /*#__PURE__*/React.createElement("p", {
+    className: "text-slate-500 text-xs"
+  }, "Raises Vit E & Se antioxidant load"))), /*#__PURE__*/React.createElement("label", {
+    className: "flex items-start gap-3 cursor-pointer"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: shelfLife,
+    onChange: e => setShelfLife(e.target.checked),
+    className: "w-5 h-5 mt-0.5 accent-rose-500"
+  }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-slate-800 flex items-center gap-1"
+  }, "Extended shelf / display life", /*#__PURE__*/React.createElement("span", {
+    className: "tooltip-container"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-info-circle text-rose-400 cursor-help"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "tooltip-pop"
+  }, "Vit E 500\u20131000 IU/head/day for last 100 days pre-slaughter extends case life 2\u20134 days. Fe & Cu capped to slow lipid oxidation."))), /*#__PURE__*/React.createElement("p", {
+    className: "text-slate-500 text-xs"
+  }, "Vit E 200 IU/kg DM + Fe/Cu capped"))))), species === 'Sheep' && /*#__PURE__*/React.createElement("div", {
+    className: "bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg shadow-sm"
+  }, /*#__PURE__*/React.createElement("h4", {
+    className: "font-bold text-amber-800 text-sm flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-triangle-exclamation"
+  }), " Sheep copper ceiling"), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-amber-700 mt-1"
+  }, "Total diet Cu must stay below ~", REQS.Sheep.cuCeiling, " mg/kg DM. Sheep are highly susceptible to copper toxicity \u2014 chronic accumulation causes a fatal hemolytic crisis.")), /*#__PURE__*/React.createElement("section", {
+    className: "bg-white rounded-xl shadow-sm border border-slate-200 p-5"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "font-semibold flex items-center gap-2 mb-4 pb-2 border-b"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-leaf text-emerald-500"
+  }), " Organic Mineral %"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, MINERAL_KEYS.map(k => /*#__PURE__*/React.createElement("div", {
+    key: k,
+    className: "flex items-center gap-3"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "w-10 text-xs font-bold text-slate-600"
+  }, k), /*#__PURE__*/React.createElement("input", {
+    type: "range",
+    min: "0",
+    max: "100",
+    value: organicPct[k],
+    onChange: e => setOrganicFor(k, e.target.value),
+    className: "flex-1 accent-emerald-600"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "w-10 text-xs font-bold text-right text-emerald-700"
+  }, organicPct[k], "%"))))), adjustedReqs.notes.length > 0 && /*#__PURE__*/React.createElement("section", {
+    className: "bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg shadow-sm"
+  }, /*#__PURE__*/React.createElement("h4", {
+    className: "font-bold text-blue-800 text-sm flex items-center gap-2 mb-2"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-circle-info"
+  }), " Applied adjustments"), /*#__PURE__*/React.createElement("ul", {
+    className: "text-xs text-blue-700 list-disc list-inside space-y-1"
+  }, adjustedReqs.notes.map((n, i) => /*#__PURE__*/React.createElement("li", {
+    key: i
+  }, n))))), /*#__PURE__*/React.createElement("div", {
+    className: "xl:col-span-8 space-y-5"
+  }, /*#__PURE__*/React.createElement("section", {
+    className: "bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-xl p-5 shadow flex flex-col md:flex-row justify-between gap-4"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "text-slate-400 text-xs uppercase tracking-wider font-bold"
+  }, "Final premix cost"), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline gap-6 mt-2 flex-wrap"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-3xl font-black text-emerald-400"
+  }, fmtCostBig(calc.totalCostPerTon)), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-slate-400 uppercase"
+  }, "per ton")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-xl font-bold text-amber-300"
+  }, fmtCost(calc.totalCostPerDose)), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-slate-400 uppercase"
+  }, "per ", dose, "g dose / head / day")))), /*#__PURE__*/React.createElement("div", {
+    className: "text-right text-xs text-slate-400"
+  }, /*#__PURE__*/React.createElement("div", null, "Currency: ", /*#__PURE__*/React.createElement("span", {
+    className: "text-white font-bold"
+  }, currency)), /*#__PURE__*/React.createElement("div", null, "Species: ", /*#__PURE__*/React.createElement("span", {
+    className: "text-white"
+  }, species)), /*#__PURE__*/React.createElement("div", null, "Stage: ", /*#__PURE__*/React.createElement("span", {
+    className: "text-white"
+  }, stage)))), /*#__PURE__*/React.createElement("section", {
+    className: "bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-slate-50 px-5 py-3 border-b border-slate-200"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-bold text-slate-800 flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-list-check text-blue-500"
+  }), "Daily Nutrient Requirements"), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-slate-500 mt-0.5"
+  }, "Per-animal requirement at ", dmi, " kg DMI. Sources: NASEM 2021 (Dairy) \xB7 NRC 2007 Small Ruminants (Goats/Sheep, from your NotebookLM) \xB7 NRC 2016 (Beef).")), /*#__PURE__*/React.createElement("div", {
+    className: "overflow-x-auto"
+  }, /*#__PURE__*/React.createElement("table", {
+    className: "w-full text-sm"
+  }, /*#__PURE__*/React.createElement("thead", {
+    className: "bg-white text-slate-400 uppercase text-[10px] font-bold border-b"
+  }, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
+    className: "px-5 py-2 text-left"
+  }, "Nutrient"), /*#__PURE__*/React.createElement("th", {
+    className: "px-5 py-2 text-right"
+  }, "Per kg DM"), /*#__PURE__*/React.createElement("th", {
+    className: "px-5 py-2 text-right text-blue-600"
+  }, "Daily Need"))), /*#__PURE__*/React.createElement("tbody", {
+    className: "divide-y divide-slate-100"
+  }, calc.summary.map(s => /*#__PURE__*/React.createElement("tr", {
+    key: s.key,
+    className: "hover:bg-slate-50"
+  }, /*#__PURE__*/React.createElement("td", {
+    className: "px-5 py-2 font-medium text-slate-700"
+  }, s.label), /*#__PURE__*/React.createElement("td", {
+    className: "px-5 py-2 text-right text-slate-500"
+  }, s.reqPerKgDm, " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] uppercase"
+  }, s.unit)), /*#__PURE__*/React.createElement("td", {
+    className: "px-5 py-2 text-right font-bold text-blue-600"
+  }, s.dailyTotal.toLocaleString(undefined, {
+    maximumFractionDigits: 2
+  }), " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] uppercase font-normal text-blue-400"
+  }, s.unit, "/d")))))))), /*#__PURE__*/React.createElement("section", {
+    className: "bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-slate-900 px-5 py-3 text-white flex items-end justify-between"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+    className: "font-bold flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-truck text-emerald-400"
+  }), " 1-Ton Batch Formula & Pricing"), /*#__PURE__*/React.createElement("p", {
+    className: "text-slate-400 text-xs"
+  }, "Edit the Price column to match your supplier quotes. Cost updates live.")), /*#__PURE__*/React.createElement("div", {
+    className: "text-right text-xs text-slate-400 hidden md:block"
+  }, "Total batch: ", /*#__PURE__*/React.createElement("span", {
+    className: "text-white text-lg font-black"
+  }, "1,000 kg"))), /*#__PURE__*/React.createElement("div", {
+    className: "overflow-x-auto"
+  }, /*#__PURE__*/React.createElement("table", {
+    className: "w-full text-xs md:text-sm"
+  }, /*#__PURE__*/React.createElement("thead", {
+    className: "bg-slate-50 text-slate-500 uppercase text-[10px] font-bold"
+  }, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
+    className: "px-2 py-2 text-center"
+  }, "Use"), /*#__PURE__*/React.createElement("th", {
+    className: "px-2 py-2 text-left"
+  }, "Ingredient"), /*#__PURE__*/React.createElement("th", {
+    className: "px-2 py-2 text-left"
+  }, "Nutrient"), /*#__PURE__*/React.createElement("th", {
+    className: "px-2 py-2 text-left"
+  }, "Type"), /*#__PURE__*/React.createElement("th", {
+    className: "px-2 py-2 text-right"
+  }, "g / dose"), /*#__PURE__*/React.createElement("th", {
+    className: "px-2 py-2 text-right"
+  }, "kg / ton"), /*#__PURE__*/React.createElement("th", {
+    className: "px-2 py-2 text-right bg-amber-50"
+  }, "Price / kg (", currency, ")"), /*#__PURE__*/React.createElement("th", {
+    className: "px-2 py-2 text-right bg-emerald-50"
+  }, "Cost / ton"))), /*#__PURE__*/React.createElement("tbody", {
+    className: "divide-y divide-slate-100"
+  }, calc.ingredients.map(ing => {
+    const costPerTon = ing.costPerDose * (1000000 / dose);
+    return /*#__PURE__*/React.createElement("tr", {
+      key: ing.key,
+      className: `hover:bg-slate-50 ${ing.excluded ? 'opacity-40' : ''}`
+    }, /*#__PURE__*/React.createElement("td", {
+      className: "px-2 py-2 text-center"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: !ing.excluded,
+      onChange: () => toggleExcluded(ing.name),
+      className: "w-4 h-4 accent-emerald-600 cursor-pointer"
+    })), /*#__PURE__*/React.createElement("td", {
+      className: `px-2 py-2 font-medium ${ing.excluded ? 'line-through text-slate-400' : 'text-slate-700'}`
+    }, ing.name), /*#__PURE__*/React.createElement("td", {
+      className: "px-2 py-2 text-slate-500"
+    }, NUTRIENT_LABELS[ing.nutrient] || ing.nutrient), /*#__PURE__*/React.createElement("td", {
+      className: "px-2 py-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: `px-1.5 py-0.5 rounded text-[9px] font-bold ${ing.type === 'Organic' ? 'bg-emerald-100 text-emerald-700' : ing.type === 'Vitamin' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`
+    }, ing.type)), /*#__PURE__*/React.createElement("td", {
+      className: "px-2 py-2 text-right text-slate-500"
+    }, ing.perDoseG.toFixed(4)), /*#__PURE__*/React.createElement("td", {
+      className: "px-2 py-2 text-right font-bold"
+    }, ing.perTonKg.toFixed(3)), /*#__PURE__*/React.createElement("td", {
+      className: "px-2 py-2 text-right bg-amber-50/50"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      step: "0.01",
+      value: prices[ing.key] === undefined ? 0 : prices[ing.key],
+      onChange: e => setPriceFor(ing.key, e.target.value),
+      className: "w-20 px-1.5 py-1 text-right bg-white border border-amber-200 rounded text-xs font-mono"
+    })), /*#__PURE__*/React.createElement("td", {
+      className: "px-2 py-2 text-right font-bold bg-emerald-50/50"
+    }, fmtCostBig(costPerTon)));
+  }), /*#__PURE__*/React.createElement("tr", {
+    className: "bg-slate-50 font-semibold border-t-2 border-slate-200"
+  }, /*#__PURE__*/React.createElement("td", {
+    className: "px-2 py-2 text-center"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-check text-slate-500"
+  })), /*#__PURE__*/React.createElement("td", {
+    className: "px-2 py-2"
+  }, SOURCES[carrier].name), /*#__PURE__*/React.createElement("td", {
+    className: "px-2 py-2 text-slate-500"
+  }, "\u2014"), /*#__PURE__*/React.createElement("td", {
+    className: "px-2 py-2"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-200 text-slate-700"
+  }, "Carrier")), /*#__PURE__*/React.createElement("td", {
+    className: "px-2 py-2 text-right"
+  }, calc.carrierG.toFixed(3)), /*#__PURE__*/React.createElement("td", {
+    className: "px-2 py-2 text-right font-bold"
+  }, (calc.carrierG / dose * 1000).toFixed(3)), /*#__PURE__*/React.createElement("td", {
+    className: "px-2 py-2 text-right bg-amber-50/50"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    step: "0.01",
+    value: prices[carrier] === undefined ? 0 : prices[carrier],
+    onChange: e => setPriceFor(carrier, e.target.value),
+    className: "w-20 px-1.5 py-1 text-right bg-white border border-amber-200 rounded text-xs font-mono"
+  })), /*#__PURE__*/React.createElement("td", {
+    className: "px-2 py-2 text-right font-bold bg-emerald-50/50"
+  }, fmtCostBig(calc.carrierCostPerDose * (1000000 / dose)))), /*#__PURE__*/React.createElement("tr", {
+    className: "bg-slate-900 text-white font-bold"
+  }, /*#__PURE__*/React.createElement("td", {
+    className: "px-2 py-3 text-center"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-calculator text-emerald-400"
+  })), /*#__PURE__*/React.createElement("td", {
+    className: "px-2 py-3",
+    colSpan: "4"
+  }, "TOTAL (per 1-ton batch)"), /*#__PURE__*/React.createElement("td", {
+    className: "px-2 py-3 text-right text-emerald-300 text-base"
+  }, "1,000.000 kg"), /*#__PURE__*/React.createElement("td", {
+    className: "px-2 py-3 text-right text-slate-400 text-xs"
+  }, "\u2014"), /*#__PURE__*/React.createElement("td", {
+    className: "px-2 py-3 text-right text-emerald-300 text-base"
+  }, fmtCostBig(calc.totalCostPerTon))))))), /*#__PURE__*/React.createElement("section", {
+    className: "bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-600"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-bold text-slate-700 mb-1"
+  }, "Data sources"), /*#__PURE__*/React.createElement("ul", {
+    className: "list-disc list-inside space-y-0.5"
+  }, /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Dairy"), ": NASEM 2021 \u2014 from your NotebookLM notebook \"Nutritional Quality of Forage and Dairy Cattle Dietary Requirements\" (89 sources)."), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Goats & Sheep"), ": NRC 2007 Small Ruminants \u2014 from your NotebookLM notebook \"Nutrient Requirements of Meat and Milk Goats\" (52 sources). Sheep Cu ceiling enforced at 15 mg/kg DM total diet."), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Beef"), ": NRC 2016 Beef Cattle values, confirmed by your NotebookLM \"Beef Nutrition Strategies for Digestibility and Methane Reduction\" (102 sources; Southeast-Asia breed focus: Brahman, Thai Native, Bali Cattle, Droughtmaster)."), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Tropical beef adjustments"), ": Bos indicus breeds (Brahman and crosses, Thai Native, Bali, Kedah-Kelantan, Droughtmaster) get Zn +15% / Vit E +20% / Vit A +10% for humid-climate hoof + heat-stress support."), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Beef quality logic"), ": Vit A restriction during finishing for intramuscular fat (Harris et al. 2017; meta-analysis 2023); Vit E + Se for oxymyoglobin protection (Faustman et al., 500 IU/h/d for 100 d); Chromium + biotin for Wagyu IMF (BBC supplementation)."))))), /*#__PURE__*/React.createElement("footer", {
+    className: "mt-8 text-center text-xs text-slate-400"
+  }, "Calculator values are estimates for formulation purposes. Always cross-check with your own lab analysis and veterinary/nutritionist review.")));
+};
+const rootEl = document.getElementById('root');
+// Clear the loading banner so React can mount cleanly
+rootEl.innerHTML = '';
+const root = ReactDOM.createRoot(rootEl);
+root.render(/*#__PURE__*/React.createElement(App, null));
+
+} catch (err) {
+  var diag = document.getElementById('load-diag');
+  if (diag) diag.textContent += '\n[FATAL] ' + (err && err.message ? err.message : err) + '\n' + (err && err.stack ? err.stack : '');
+  var status = document.getElementById('load-status');
+  if (status) status.textContent = 'Calculator failed to start: ' + (err && err.message ? err.message : err);
+  console.error(err);
+}
+</script>
+</body>
+</html>
