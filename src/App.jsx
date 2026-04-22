@@ -10,6 +10,7 @@ import { useCustomProducts, useSavedFormulations } from './hooks/useCustomProduc
 import { OrganicSourcesPanel } from './components/OrganicSourcesPanel.jsx';
 import { InorganicSourcesPanel } from './components/InorganicSourcesPanel.jsx';
 import { MineralDeliveryTable } from './components/MineralDeliveryTable.jsx';
+import { PrintableReport } from './components/PrintableReport.jsx';
 import { CustomProductModal } from './components/CustomProductModal.jsx';
 import { CustomProductsList } from './components/CustomProductsList.jsx';
 import { BioavailGuide } from './components/BioavailGuide.jsx';
@@ -143,7 +144,8 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen p-4 md:p-6 max-w-7xl mx-auto">
+    <>
+    <div className="min-h-screen p-4 md:p-6 max-w-7xl mx-auto screen-only">
       <Header currency={currency} setCurrency={setCurrency}
               onExportCSV={() => exportFormulationCSV({ calc, species, stage, breed, dmi, dose, batchKg, currency })}
               onExportRationall={() => exportRationallCSV({ calc, species, stage, dose, currency, currencyRate: c.rate, customProducts })}
@@ -234,6 +236,15 @@ export default function App() {
 
       <CustomProductModal open={modalOpen} onClose={() => setModalOpen(false)} onSave={addCustom} />
     </div>
+
+    <PrintableReport
+      species={species} breed={breed} stage={stage}
+      dmi={dmi} dose={dose} batchKg={batchKg} currency={currency}
+      milkYield={milkYield}
+      marbling={marbling} colorFocus={colorFocus} shelfLife={shelfLife}
+      calc={calc} adjustedReqs={adjustedReqs} fmt={fmt}
+    />
+    </>
   );
 }
 

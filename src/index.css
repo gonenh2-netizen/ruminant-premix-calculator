@@ -23,9 +23,17 @@
     text-transform: none;
 }
 
+/* Report is hidden in normal screen view; revealed only by print CSS below. */
+.print-only { display: none; }
+
 @media print {
+    @page { margin: 12mm; }
     body { background-color: white !important; }
-    .no-print { display: none !important; }
+    /* Hide the live UI entirely; only the printable report renders. */
+    .screen-only { display: none !important; }
+    .no-print    { display: none !important; }
+    .print-only  { display: block !important; }
     table { page-break-inside: auto; }
-    tr { page-break-inside: avoid; }
+    tr    { page-break-inside: avoid; }
+    thead { display: table-header-group; }
 }
