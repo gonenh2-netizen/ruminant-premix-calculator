@@ -1,4 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import { SUPPORTED_LANGS } from './i18n.js';
+import { useAuth } from './hooks/useAuth.js';
+import { CLOUD_ENABLED } from './firebase.js';
+import { AuthModal } from './components/AuthModal.jsx';
 import { REQS } from './data/requirements.js';
 import { PRODUCTS } from './data/products.js';
 import { BLENDS } from './data/blends.js';
@@ -90,8 +95,10 @@ export default function App() {
   const [xzelitDose, setXzelitDose] = useState(400);
   const [modalOpen, setModalOpen] = useState(false);
 
+  const { t, i18n } = useTranslation();
+  const auth = useAuth();
   const { customProducts, addCustom, removeCustom } = useCustomProducts();
-  const { saved, saveFormulation, removeFormulation } = useSavedFormulations();
+  const { saved, saveFormulation, removeFormulation } = useSavedFormulations(auth.user);
 
   useEffect(() => {
     const stages = Object.keys(REQS[species].stages);
@@ -185,10 +192,35 @@ export default function App() {
     if (s.priceOverrides) setPrices((prev) => ({ ...prev, ...s.priceOverrides }));
   };
 
+  // Gate the app behind login when cloud is configured. While Firebase is
+  // still booting we show a tiny splash so the UI doesn't flicker.
+  if (CLOUD_ENABLED && auth.loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-slate-500">
+        <div className="text-center">
+          <i className="fas fa-flask-vial text-emerald-600 text-3xl animate-pulse mb-3"></i>
+          <div>{t('auth.pleaseWait')}</div>
+        </div>
+      </div>
+    );
+  }
+  if (CLOUD_ENABLED && !auth.user) {
+    return (
+      <AuthModal
+        signUp={auth.signUp}
+        signIn={auth.signIn}
+        resetPassword={auth.resetPassword}
+        t={t}
+      />
+    );
+  }
+
   return (
     <>
     <div className="min-h-screen p-4 md:p-6 max-w-7xl mx-auto screen-only">
-      <Header currency={currency} setCurrency={setCurrency}
+      <Header t={t} i18n={i18n}
+              auth={auth}
+              currency={currency} setCurrency={setCurrency}
               onExportCSV={() => exportFormulationCSV({ calc, species, stage, breed, dmi, dose, batchKg, currency })}
               onExportRationall={() => exportRationallCSV({ calc, species, stage, dose, currency, currencyRate: c.rate, customProducts })}
               onExportAMTS={() => exportAMTS_XML({ calc, species, stage, dose, customProducts })}
@@ -206,6 +238,7 @@ export default function App() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="space-y-5">
           <AnimalProfile
+            t={t}
             sp={sp} stages={stages}
             breed={breed} setBreed={setBreed}
             stage={stage} setStage={setStage}
@@ -238,11 +271,11 @@ export default function App() {
         </div>
 
         <div className="lg:col-span-2 space-y-5">
-          <CostHeadline calc={calc} dose={dose} fmt={fmt} />
+          <CostHeadline t={t} calc={calc} dose={dose} fmt={fmt} />
 
           {calc.warnings.length > 0 && (
             <div className="bg-rose-50 border-l-4 border-rose-500 p-4 rounded-r-lg text-sm">
-              <div className="font-bold text-rose-800 mb-1"><i className="fas fa-triangle-exclamation mr-1"></i>Warnings</div>
+              <div className="font-bold text-rose-800 mb-1"><i className="fas fa-triangle-exclamation mr-1"></i>{t('warnings.title')}</div>
               <ul className="text-xs text-rose-700 list-disc list-inside space-y-1">
                 {calc.warnings.map((w, i) => <li key={i}>{w}</li>)}
               </ul>
@@ -293,7 +326,7 @@ export default function App() {
       </div>
 
       <footer className="mt-8 text-center text-xs text-slate-400">
-        Ruminant Vitamin &amp; Mineral Premix Calculator · NRC/NASEM baselines · prices are USD estimates, editable per product.
+        {t('app.footer')}
       </footer>
 
       <CustomProductModal open={modalOpen} onClose={() => setModalOpen(false)} onSave={addCustom} />
@@ -310,83 +343,113 @@ export default function App() {
   );
 }
 
-function Header({ currency, setCurrency, onExportCSV, onExportRationall, onExportAMTS, onPrint }) {
+function Header({ t, i18n, auth, currency, setCurrency, onExportCSV, onExportRationall, onExportAMTS, onPrint }) {
+  const changeLang = (code) => i18n.changeLanguage(code);
+  const activeLang = SUPPORTED_LANGS.find((l) => l.code === (i18n.resolvedLanguage || i18n.language)) || SUPPORTED_LANGS[0];
   return (
     <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-6 no-print">
       <div>
         <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
           <i className="fas fa-flask-vial text-emerald-600 mr-2"></i>
-          Ruminant Vitamin &amp; Mineral Premix Calculator
+          {t('app.title')}
         </h1>
-        <p className="text-sm text-slate-500 mt-1">Dairy · Beef · Goats · Sheep — NRC / NASEM based</p>
+        <p className="text-sm text-slate-500 mt-1">{t('app.tagline')}</p>
       </div>
       <div className="flex flex-wrap gap-2 items-center">
-        <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="bg-white border rounded-lg px-3 py-2 text-sm">
+        <select
+          value={activeLang.code}
+          onChange={(e) => changeLang(e.target.value)}
+          className="bg-white border rounded-lg px-3 py-2 text-sm"
+          title={t('header.language')}
+        >
+          {SUPPORTED_LANGS.map((l) => (
+            <option key={l.code} value={l.code}>{l.flag} {l.label}</option>
+          ))}
+        </select>
+        <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="bg-white border rounded-lg px-3 py-2 text-sm" title={t('header.currency')}>
           {Object.entries(CURRENCIES).map(([k, v]) => <option key={k} value={k}>{v.symbol} {k}</option>)}
         </select>
-        <button onClick={onExportCSV} className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-2 rounded-lg text-xs font-semibold" title="Generic formulation report CSV">
-          <i className="fas fa-file-csv mr-1"></i> CSV
+        <button onClick={onExportCSV} className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-2 rounded-lg text-xs font-semibold" title={t('header.exportCSVTooltip')}>
+          <i className="fas fa-file-csv mr-1"></i> {t('header.exportCSV')}
         </button>
-        <button onClick={onExportRationall} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-semibold" title="Rationall matrix feed-row CSV">
-          <i className="fas fa-table mr-1"></i> Rationall
+        <button onClick={onExportRationall} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-semibold" title={t('header.exportRationallTooltip')}>
+          <i className="fas fa-table mr-1"></i> {t('header.exportRationall')}
         </button>
-        <button onClick={onExportAMTS} className="bg-sky-600 hover:bg-sky-700 text-white px-3 py-2 rounded-lg text-xs font-semibold" title="AMTS / NDS Standard_XML_Data">
-          <i className="fas fa-file-code mr-1"></i> AMTS/NDS XML
+        <button onClick={onExportAMTS} className="bg-sky-600 hover:bg-sky-700 text-white px-3 py-2 rounded-lg text-xs font-semibold" title={t('header.exportAMTSTooltip')}>
+          <i className="fas fa-file-code mr-1"></i> {t('header.exportAMTS')}
         </button>
-        <button onClick={onPrint} className="bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-xs font-semibold" title="Print / save as PDF">
-          <i className="fas fa-print mr-1"></i> Print
+        <button onClick={onPrint} className="bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-xs font-semibold" title={t('header.printTooltip')}>
+          <i className="fas fa-print mr-1"></i> {t('header.print')}
         </button>
+        {auth?.cloudEnabled && auth.user && (
+          <div className="flex items-center gap-2 border-l pl-2 ml-1">
+            <div className="text-right leading-tight">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">{t('auth.signedInAs')}</div>
+              <div className="text-xs font-semibold text-slate-700 truncate max-w-[180px]">
+                {auth.user.displayName || auth.user.email}
+              </div>
+            </div>
+            <button
+              onClick={() => auth.logout()}
+              className="bg-rose-100 hover:bg-rose-200 text-rose-700 px-2 py-1 rounded text-[10px] font-bold"
+              title={t('auth.logout')}
+            >
+              <i className="fas fa-arrow-right-from-bracket"></i>
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );
 }
 
 function AnimalProfile({
+  t,
   sp, stages, breed, setBreed, stage, setStage, dmi, setDmi, dose, setDose,
   milkYield, setMilkYield, carrier, setCarrier, batchKg, setBatchKg,
   species, marbling, setMarbling, colorFocus, setColorFocus, shelfLife, setShelfLife,
 }) {
   return (
     <section className="bg-white rounded-xl p-5 shadow-sm border space-y-3">
-      <h2 className="font-semibold border-b pb-2">Animal Profile</h2>
+      <h2 className="font-semibold border-b pb-2">{t('animalProfile.title')}</h2>
       <div>
-        <label className="block text-xs font-bold text-slate-500 uppercase">Breed</label>
+        <label className="block text-xs font-bold text-slate-500 uppercase">{t('animalProfile.breed')}</label>
         <select value={breed} onChange={(e) => setBreed(e.target.value)} className="w-full bg-slate-50 border rounded-lg p-2 text-sm">
           {sp.breeds.map((b) => <option key={b}>{b}</option>)}
         </select>
       </div>
       <div>
-        <label className="block text-xs font-bold text-slate-500 uppercase">Stage</label>
+        <label className="block text-xs font-bold text-slate-500 uppercase">{t('animalProfile.stage')}</label>
         <select value={stage} onChange={(e) => setStage(e.target.value)} className="w-full bg-slate-50 border rounded-lg p-2 text-sm">
           {stages.map((s) => <option key={s}>{s}</option>)}
         </select>
       </div>
       {sp.hasMilkYield && stage.toLowerCase().includes('lactation') && (
         <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase">Milk Yield (kg/d)</label>
+          <label className="block text-xs font-bold text-slate-500 uppercase">{t('animalProfile.milkYield')}</label>
           <input type="number" step="0.1" value={milkYield} onChange={(e) => setMilkYield(+e.target.value)}
                  className="w-full bg-emerald-50 border border-emerald-200 rounded-lg p-2 font-bold text-emerald-700" />
         </div>
       )}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase">DMI kg/d</label>
+          <label className="block text-xs font-bold text-slate-500 uppercase">{t('animalProfile.dmi')}</label>
           <input type="number" step="0.1" value={dmi} onChange={(e) => setDmi(+e.target.value)} className="w-full bg-slate-50 border rounded-lg p-2 text-sm" />
         </div>
         <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase">Dose g/d</label>
+          <label className="block text-xs font-bold text-slate-500 uppercase">{t('animalProfile.dose')}</label>
           <input type="number" value={dose} onChange={(e) => setDose(+e.target.value)} className="w-full bg-emerald-50 border border-emerald-200 rounded-lg p-2 text-sm font-bold text-emerald-700" />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase">Carrier</label>
+          <label className="block text-xs font-bold text-slate-500 uppercase">{t('animalProfile.carrier')}</label>
           <select value={carrier} onChange={(e) => setCarrier(e.target.value)} className="w-full bg-slate-50 border rounded-lg p-2 text-sm">
             {CARRIERS.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase">Batch Size</label>
+          <label className="block text-xs font-bold text-slate-500 uppercase">{t('animalProfile.batchSize')}</label>
           <select value={batchKg} onChange={(e) => setBatchKg(+e.target.value)} className="w-full bg-slate-50 border rounded-lg p-2 text-sm">
             {BATCH_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -394,26 +457,26 @@ function AnimalProfile({
       </div>
       {['Beef', 'Goat', 'Sheep'].includes(species) && (
         <div className="pt-3 border-t space-y-2 text-sm">
-          <div className="font-semibold text-rose-700"><i className="fas fa-bullseye mr-1"></i>Meat Quality Targets</div>
+          <div className="font-semibold text-rose-700"><i className="fas fa-bullseye mr-1"></i>{t('animalProfile.meatQualityTitle')}</div>
           <label className="flex items-start gap-2 cursor-pointer">
             <input type="checkbox" checked={marbling} onChange={(e) => setMarbling(e.target.checked)} className="mt-0.5" />
             <span>
-              <b>Marbling (IMF)</b>
-              <span className="block text-[10px] text-slate-500">Vit A restriction during finishing; Cr + biotin boost for insulin sensitivity.</span>
+              <b>{t('animalProfile.marbling')}</b>
+              <span className="block text-[10px] text-slate-500">{t('animalProfile.marblingNote')}</span>
             </span>
           </label>
           <label className="flex items-start gap-2 cursor-pointer">
             <input type="checkbox" checked={colorFocus} onChange={(e) => setColorFocus(e.target.checked)} className="mt-0.5" />
             <span>
-              <b>Bright-red color</b>
-              <span className="block text-[10px] text-slate-500">Vit E ≥150 IU/kg DM, Se ≥0.30 mg/kg DM for oxymyoglobin stability.</span>
+              <b>{t('animalProfile.color')}</b>
+              <span className="block text-[10px] text-slate-500">{t('animalProfile.colorNote')}</span>
             </span>
           </label>
           <label className="flex items-start gap-2 cursor-pointer">
             <input type="checkbox" checked={shelfLife} onChange={(e) => setShelfLife(e.target.checked)} className="mt-0.5" />
             <span>
-              <b>Extended shelf life</b>
-              <span className="block text-[10px] text-slate-500">Vit E ≥200 IU/kg DM, Fe/Cu capped to slow lipid oxidation in retail display.</span>
+              <b>{t('animalProfile.shelfLife')}</b>
+              <span className="block text-[10px] text-slate-500">{t('animalProfile.shelfLifeNote')}</span>
             </span>
           </label>
         </div>
@@ -422,13 +485,13 @@ function AnimalProfile({
   );
 }
 
-function CostHeadline({ calc, dose, fmt }) {
+function CostHeadline({ t, calc, dose, fmt }) {
   return (
     <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-xl p-5 shadow">
-      <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Final premix cost</p>
+      <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">{t('cost.finalPremixCost')}</p>
       <div className="text-3xl md:text-4xl font-black text-emerald-400 mt-1">{fmt(calc.totalCostPerTon)}</div>
-      <div className="text-xs text-slate-400 uppercase">per ton · {fmt(calc.totalCostPerDose, 4)} per {dose}g dose</div>
-      <div className="text-[10px] text-slate-500 mt-2">Active ingredients {calc.totalActiveG.toFixed(2)} g + carrier {calc.carrierG.toFixed(2)} g = {dose} g dose</div>
+      <div className="text-xs text-slate-400 uppercase">{t('cost.perTon')} · {fmt(calc.totalCostPerDose, 4)} {t('cost.perDose', { dose })}</div>
+      <div className="text-[10px] text-slate-500 mt-2">{t('cost.activeAndCarrier', { active: calc.totalActiveG.toFixed(2), carrier: calc.carrierG.toFixed(2), dose })}</div>
     </div>
   );
 }
