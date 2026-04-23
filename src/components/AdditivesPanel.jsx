@@ -103,18 +103,26 @@ export function AdditivesPanel({
                     const price = prices[a.id] ?? a.price;
                     const costPerDay = (+dose || 0) * price / 1000;
 
+                    const overLimit = included && a.maxDose != null && +dose > a.maxDose;
+
                     return (
-                      <div key={a.id} className={`px-3 py-2 ${included ? 'bg-emerald-50/60' : ''} ${!applies ? 'opacity-40' : ''}`}>
+                      <div key={a.id} className={`px-3 py-2 ${overLimit ? 'bg-rose-50' : included ? 'bg-emerald-50/60' : ''} ${!applies ? 'opacity-40' : ''}`}>
                         <div className="grid grid-cols-12 gap-2 items-start">
                           <div className="col-span-12 md:col-span-5">
                             <div className="font-medium text-sm text-slate-800">
                               {a.name}
-                              {included && <span className="ml-1 text-[9px] bg-emerald-600 text-white px-1 py-0.5 rounded font-bold">IN PREMIX</span>}
+                              {included && !overLimit && <span className="ml-1 text-[9px] bg-emerald-600 text-white px-1 py-0.5 rounded font-bold">IN PREMIX</span>}
+                              {overLimit && <span className="ml-1 text-[9px] bg-rose-600 text-white px-1 py-0.5 rounded font-bold animate-pulse">⚠ OVER MAX</span>}
                               {a.regulatoryNote && <span className="ml-1 text-[9px] bg-rose-100 text-rose-700 px-1 py-0.5 rounded font-bold" title={a.regulatoryNote}>⚠ REG</span>}
                               {!applies && <span className="ml-1 text-[9px] bg-slate-200 text-slate-600 px-1 py-0.5 rounded">N/A</span>}
                             </div>
                             <div className="text-[10px] text-slate-500">{a.brand}</div>
                             <div className="text-[10px] text-slate-500 italic">{a.note}</div>
+                            {overLimit && (
+                              <div className="text-[10px] text-rose-700 font-bold mt-1 leading-snug">
+                                {a.maxDoseNote || `Exceeds safety ceiling of ${a.maxDose} g/hd/d.`}
+                              </div>
+                            )}
                           </div>
                           <div className="col-span-6 md:col-span-3">
                             <label className="block text-[10px] font-bold uppercase text-slate-500">Dose (g/hd/d)</label>
@@ -123,10 +131,15 @@ export function AdditivesPanel({
                               value={dose}
                               onChange={(e) => setDose(a.id, e.target.value)}
                               placeholder={`${a.typicalDose}`}
-                              className={`w-full border rounded px-2 py-1 text-sm text-right ${included ? 'bg-white font-bold text-emerald-700' : 'bg-slate-50 text-slate-600'}`}
-                              title={`Typical ${a.doseRange}`}
+                              className={`w-full border rounded px-2 py-1 text-sm text-right ${overLimit ? 'bg-rose-100 text-rose-800 border-rose-500 font-bold' : included ? 'bg-white font-bold text-emerald-700' : 'bg-slate-50 text-slate-600'}`}
+                              title={overLimit ? `Exceeds max ${a.maxDose} g/hd/d` : `Typical ${a.doseRange}`}
                             />
                             <div className="text-[9px] text-slate-400 mt-0.5">{a.doseRange}</div>
+                            {a.maxDose != null && (
+                              <div className={`text-[9px] mt-0.5 font-bold ${overLimit ? 'text-rose-700' : 'text-slate-500'}`}>
+                                Max {a.maxDose} g/hd/d
+                              </div>
+                            )}
                           </div>
                           <div className="col-span-6 md:col-span-2">
                             <label className="block text-[10px] font-bold uppercase text-slate-500">Price / kg</label>
