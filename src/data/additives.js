@@ -84,7 +84,11 @@ export const ADDITIVES = [
   { id: 'dcad_soychlor',         name: 'SoyChlor',                         brand: 'West Central',   category: 'DCAD Anionic Salt', typicalDose: 400, doseRange: '300–600 g/hd/d', price: 1.20, note: 'Soybean meal + HCl, ~4.5% Cl. Target diet DCAD −100 to −150 mEq/kg. Most palatable anionic.', species: ['Dairy'], stages: ['Close-up Dry'] },
   { id: 'dcad_biochlor',         name: 'Bio-Chlor',                        brand: 'Church & Dwight',category: 'DCAD Anionic Salt', typicalDose: 400, doseRange: '300–600 g/hd/d', price: 1.10, note: 'Fermentation extract + anionic salts, ~6–7% Cl. Palatable; US mainstream.', species: ['Dairy'], stages: ['Close-up Dry'] },
   { id: 'dcad_animate',          name: 'Animate',                          brand: 'Phibro',         category: 'DCAD Anionic Salt', typicalDose: 450, doseRange: '300–600 g/hd/d', price: 1.15, note: 'Anionic salt blend for close-up. Good palatability.', species: ['Dairy'], stages: ['Close-up Dry'] },
-  { id: 'dcad_xzelit',           name: 'X-Zelit (Zeolite)',                brand: 'Vilofoss',       category: 'DCAD Anionic Salt', typicalDose: 500, doseRange: '400–600 g/hd/d', price: 2.40, note: 'Synthetic zeolite binds dietary Ca pre-calving to prime parathyroid. Different mechanism — does NOT lower DCAD but achieves same goal.', species: ['Dairy'], stages: ['Close-up Dry'] },
+  // X-Zelit belongs in its own category — P-binder — because its mechanism is
+  // distinct from DCAD acidification. It works by binding rumen phosphorus, which
+  // triggers a controlled blood-P drop, lowers FGF23, and cues bone to mobilise
+  // both Ca and P before calving. No DCAD manipulation or low-K forage needed.
+  { id: 'xzelit',                name: 'X-Zelit (Synthetic zeolite P-binder)', brand: 'Vilofoss',   category: 'P-binder (Dry Cow)', typicalDose: 400, doseRange: '350–500 g/hd/d for last 14–21 days pre-calving', price: 2.40, note: 'Sodium aluminum silicate. Binds rumen P → blood P drops → FGF23 falls → bone mobilises Ca+P. Dose: ~10 g X-Zelit per g dietary P. No DCAD manipulation, no low-K forage requirement, no urine pH monitoring.', species: ['Dairy'], stages: ['Close-up Dry'] },
   { id: 'dcad_nh4cl',            name: 'Ammonium Chloride (NH₄Cl)',        brand: 'Generic',        category: 'DCAD Anionic Salt', typicalDose: 100, doseRange: '50–150 g/hd/d',  price: 0.80, note: 'Cheapest acidogenic salt, 66% Cl. Very unpalatable — must mix well in TMR.', species: ['Dairy'], stages: ['Close-up Dry'] },
   { id: 'dcad_nh4so4',           name: 'Ammonium Sulfate ((NH₄)₂SO₄)',    brand: 'Generic',        category: 'DCAD Anionic Salt', typicalDose: 100, doseRange: '50–150 g/hd/d',  price: 0.45, note: 'Acidogenic; S + N. Paired with NH₄Cl. Poor palatability.', species: ['Dairy'], stages: ['Close-up Dry'] },
   { id: 'dcad_mgso4',            name: 'Magnesium Sulfate (Epsom)',        brand: 'Generic',        category: 'DCAD Anionic Salt', typicalDose: 80,  doseRange: '50–100 g/hd/d',  price: 0.35, note: 'Supplies acidogenic SO₄ + Mg. Laxative in high doses.', species: ['Dairy'], stages: ['Close-up Dry'] },
@@ -120,6 +124,7 @@ export const ADDITIVE_CATEGORIES = [
   'RP-AA',
   'RP-Vitamin',
   'DCAD Anionic Salt',
+  'P-binder (Dry Cow)',
   'Glucogenic Energy',
   'Slow-release N',
   'Enzyme',
@@ -129,4 +134,19 @@ export const ADDITIVE_CATEGORIES = [
   'Tannin',
   'Flavor/Palatability',
   'Metabolic modifier',
+];
+
+/**
+ * Dry-cow milk-fever prevention strategies. These are orthogonal to the
+ * additives catalog — the calculator's UI exposes a selector (Close-up /
+ * Far-off Dry stages only for Dairy species) that auto-configures premix
+ * targets and suggests which additives to include. See CLAUDE.md for the
+ * full strategy decision logic.
+ */
+export const DRY_COW_STRATEGIES = [
+  { id: 'standard', label: 'Standard (no intervention)', desc: 'Baseline premix only. Not recommended for high-yielding herds.' },
+  { id: 'dcad',     label: 'Negative DCAD',               desc: 'Acidify with anionic salts. Target urine pH 6.0–6.5. Ca target 150–180 g/hd/d.' },
+  { id: 'pbinder',  label: 'P-binder (Vilofoss X-Zelit)', desc: 'Binds rumen P → bone mobilises Ca + P. No DCAD manipulation. 350–500 g X-Zelit/hd/d, 14–21 days pre-calving.' },
+  { id: 'lowCa',    label: 'Low Calcium (Goff method)',   desc: 'Restrict dietary Ca (typically to 30, 50, or 70 g/hd/d). Hard to achieve with modern high-Ca forages.' },
+  { id: 'lowP',     label: 'Low Phosphorus',              desc: 'Restrict dietary P to ~30 g/hd/d. Low blood P stimulates vitamin-D activation → improved Ca absorption.' },
 ];

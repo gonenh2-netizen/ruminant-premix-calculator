@@ -193,6 +193,31 @@ No formal test suite yet. When adding logic, at minimum verify by hand:
 3. **Sheep with Cu slider at 100% organic** → check total diet Cu doesn't exceed 15 mg/kg DM; warning banner should display.
 4. **Dairy goat early lactation with 6 kg yield (2× baseline)** → Zn should bump 35% above baseline, Vit E and Biotin proportionally.
 
+## Dry Cow Milk-Fever Prevention Strategies
+
+The calculator exposes a strategy selector (visible for **Dairy + Close-up Dry / Far-off Dry** stages only). This is orthogonal to the additives catalog — it drives recommendations and nutrient targets for the close-up premix.
+
+Five strategies, each with distinct mechanism and premix implications:
+
+| Strategy | Mechanism | Key nutrient targets | Auto-recommended additives |
+|---|---|---|---|
+| **Standard** | No intervention | Normal Ca (100 g/d) | None |
+| **Negative DCAD** (user sets target, e.g. −100 mEq/kg DM) | Acidify blood → parathyroid activation → bone Ca mobilization | Ca 150–180 g/d; Mg 0.4%; Vit D ≥1,500 IU/kg DM; urine pH 6.0–6.5 | SoyChlor OR Bio-Chlor OR Animate OR generic NH₄Cl + (NH₄)₂SO₄ + MgSO₄ blend. Optionally palatability additive (Luctarom/Sucram) to mask bitter salts. |
+| **P-binder (Vilofoss X-Zelit)** | Binds rumen P → blood P drops → FGF23 falls → bone mobilizes Ca + P | Moderate Ca (70–100 g/d); P not limited | X-Zelit 350–500 g/hd/d for last 14–21 days pre-calving. Auto-populated by the selector. |
+| **Low Calcium** (user picks max 30/50/70 g/d) | Hard Ca restriction to prime parathyroid | Ca cap at user-set g/d | Remove limestone carrier; use Rice Hulls or Wheat Middlings. Hard with alfalfa-based diets. |
+| **Low Phosphorus** | P restriction → vitamin-D activation → Ca absorption ↑ | P target ~30 g/d | No specific additive; feed low-P forages, avoid P-rich concentrates. |
+
+**Vilofoss X-Zelit** (the main product for the P-binder approach) is a sodium aluminum silicate (synthetic zeolite). Mechanism: binds rumen phosphorus → controlled blood-P drop → FGF23 (phosphate-regulating hormone) falls → bone mobilizes both Ca and P before calving. At calving the cow has primed bone resorption and enters lactation with higher blood Ca.
+
+Advantages over DCAD: no palatability issue (X-Zelit is tasteless), no low-K forage requirement, no urine-pH monitoring, simpler management.
+
+**Implementation notes for Claude Code:**
+- State variables in `App.jsx`: `dryCowStrategy`, `dcadTarget`, `maxCaGPerDay`, `xzelitDose`
+- When strategy changes to `pbinder`, a `useEffect` auto-populates `additiveDose.xzelit` with the chosen dose; resets on strategy change
+- `adjustReqs.js` logic checks species + stage + strategy to append explanatory notes and adjust Vit D (bump to 1500 IU/kg DM for DCAD and P-binder approaches)
+- When porting to modular components: create `src/components/DryCowStrategy.jsx` that renders the radio group + sub-parameters (DCAD slider, Ca cap buttons, X-Zelit dose input)
+- `DRY_COW_STRATEGIES` constant is exported from `src/data/additives.js` and is the single source of truth for option labels and descriptions
+
 ## Known issues / things to verify
 
 - XML tag naming for AMTS may need adjustment — I don't have a verified AMTS premix XML sample to compare against. First import attempt will tell us what the importer expects.

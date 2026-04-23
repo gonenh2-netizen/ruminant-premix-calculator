@@ -693,7 +693,8 @@ const ADDITIVES = [
   { id:'dcad_soychlor',          name:'SoyChlor',                            brand:'West Central',   category:'DCAD Anionic Salt',  typicalDose:400, price:1.20,  note:'Soybean meal + HCl, ~4.5% Cl. Most palatable anionic product. Target DCAD −100 to −150 mEq/kg close-up.' },
   { id:'dcad_biochlor',          name:'Bio-Chlor',                           brand:'Church & Dwight',category:'DCAD Anionic Salt',  typicalDose:400, price:1.10,  note:'Fermentation + anionic salts, ~6–7% Cl. US mainstream; good palatability.' },
   { id:'dcad_animate',           name:'Animate',                             brand:'Phibro',         category:'DCAD Anionic Salt',  typicalDose:450, price:1.15,  note:'Anionic blend for close-up. Palatable.' },
-  { id:'dcad_xzelit',            name:'X-Zelit (Zeolite)',                   brand:'Vilofoss',       category:'DCAD Anionic Salt',  typicalDose:500, price:2.40,  note:'Synthetic zeolite binds dietary Ca pre-calving to prime parathyroid. Different mechanism, same goal.' },
+  // X-Zelit: own category because it bypasses DCAD entirely (P-binder, not anionic salt)
+  { id:'xzelit',                 name:'X-Zelit (Synthetic zeolite / P-binder)', brand:'Vilofoss',    category:'P-binder (Dry Cow)', typicalDose:400, price:2.40,  note:'Sodium aluminum silicate. Binds rumen P → blood P drops → FGF23 falls → bone mobilises Ca + P. No DCAD manipulation needed; no low-K forage required. Dose: ~10 g X-Zelit per g dietary P intake, typically 350–500 g/hd/d for last 14–21 days pre-calving.' },
   { id:'dcad_nh4cl',             name:'Ammonium Chloride (NH₄Cl)',           brand:'Generic',        category:'DCAD Anionic Salt',  typicalDose:100, price:0.80,  note:'Cheapest acidogenic salt, 66% Cl. Very unpalatable — mix well.' },
   { id:'dcad_nh4so4',            name:'Ammonium Sulfate ((NH₄)₂SO₄)',        brand:'Generic',        category:'DCAD Anionic Salt',  typicalDose:100, price:0.45,  note:'Acidogenic; S + N. Paired with NH₄Cl. Poor palatability.' },
   { id:'dcad_mgso4',             name:'Magnesium Sulfate (Epsom)',           brand:'Generic',        category:'DCAD Anionic Salt',  typicalDose:80,  price:0.35,  note:'Supplies acidogenic SO₄ + Mg. Laxative at high doses.' },
@@ -752,6 +753,17 @@ const App = () => {
   const [colorFocus, setColorFocus] = useState(false);
   const [shelfLife, setShelfLife] = useState(false);
 
+  // Dry-cow milk-fever prevention strategy
+  // 'standard'  — no special intervention (not recommended for high-yielding cows)
+  // 'dcad'      — negative DCAD diet with anionic salts
+  // 'pbinder'   — phosphorus binder (e.g. Vilofoss X-Zelit) — no DCAD manipulation
+  // 'lowCa'     — restrict dietary Ca (classic Goff approach; hard to achieve in practice)
+  // 'lowP'      — low phosphorus direct restriction
+  const [dryCowStrategy, setDryCowStrategy] = useState('standard');
+  const [dcadTarget, setDcadTarget] = useState(-100);      // mEq/kg DM
+  const [maxCaGPerDay, setMaxCaGPerDay] = useState(50);    // 50 or 70 g/day for lowCa strategy
+  const [xzelitDose, setXzelitDose] = useState(400);       // g/hd/d for P-binder strategy
+
   // Organic inclusion per mineral
   const [organicPct, setOrganicPct] = useState({
     Zn: 30,
@@ -785,6 +797,22 @@ const App = () => {
     const br = REQS[species].breeds;
     if (!br.includes(breed)) setBreed(br[0]);
   }, [species]);
+
+  // Auto-add X-Zelit when user selects the P-binder dry-cow strategy (only
+  // during close-up); clear it if they switch back to another strategy.
+  useEffect(() => {
+    const isDryCow = stage === 'Close-up Dry' || stage === 'Far-off Dry';
+    setAdditiveDose(prev => {
+      const next = { ...prev };
+      if (species === 'Dairy' && isDryCow && dryCowStrategy === 'pbinder') {
+        next.xzelit = xzelitDose;
+      } else if (prev.xzelit) {
+        // Clear the auto-managed dose when strategy changes; user can still set it manually afterwards.
+        delete next.xzelit;
+      }
+      return next;
+    });
+  }, [dryCowStrategy, xzelitDose, species, stage]);
 
   // Compute adjusted requirements based on species, stage, milk yield, beef quality
   const adjustedReqs = useMemo(() => {
@@ -869,11 +897,30 @@ const App = () => {
         notes.push('Shelf life ON: Vit E ≥200 IU/kg DM + Se 0.30 mg/kg DM. Fe and Cu capped to slow lipid oxidation in the display case.');
       }
     }
+
+    // Dry-cow milk-fever prevention strategy (only for Dairy + Close-up/Far-off Dry)
+    if (species === 'Dairy' && (stage === 'Close-up Dry' || stage === 'Far-off Dry')) {
+      if (dryCowStrategy === 'dcad') {
+        base.VitD = Math.max(base.VitD, 1500); // boost Vit D to support bone mobilization
+        base.Mg = 4000;  // target ~0.4% Mg (g per kg DM) — informational tag only
+        notes.push(`Dry-cow strategy: NEGATIVE DCAD at target ${dcadTarget} mEq/kg DM. Include anionic salts (SoyChlor, Bio-Chlor, Animate, or the generic NH₄Cl/(NH₄)₂SO₄ blend) — use the DCAD Anionic Salt category in the additives panel. Target dietary Ca 150–180 g/hd/d. Monitor urine pH (target 6.0–6.5 for Holsteins).`);
+      } else if (dryCowStrategy === 'pbinder') {
+        base.VitD = Math.max(base.VitD, 1500);
+        notes.push(`Dry-cow strategy: P-BINDER (Vilofoss X-Zelit) at ${xzelitDose} g/hd/d auto-added to additives. Binds rumen P → blood P drops → FGF23 falls → bone mobilises Ca + P pre-calving. No DCAD manipulation required. Keep dietary Ca moderate (70–100 g/hd/d); no low-K forage needed.`);
+      } else if (dryCowStrategy === 'lowCa') {
+        notes.push(`Dry-cow strategy: LOW CALCIUM — target total Ca ≤ ${maxCaGPerDay} g/hd/d (classic Goff approach). Use low-Ca forages (grass hay, NOT alfalfa). Remove limestone from the premix carrier — use Rice Hulls or Wheat Middlings instead. Hard to achieve in practice with modern high-Ca forages; DCAD or P-binder usually preferred.`);
+      } else if (dryCowStrategy === 'lowP') {
+        notes.push(`Dry-cow strategy: LOW PHOSPHORUS — target dietary P ~30 g/hd/d (below NRC). Low blood P triggers vitamin-D activation → improved Ca absorption at calving. Emerging approach; less validated than DCAD or X-Zelit but simpler if forages already low-P.`);
+      } else {
+        notes.push('Dry-cow strategy: STANDARD (no specific intervention). For high-yielding herds, consider DCAD, X-Zelit (P-binder), or low-Ca approach to reduce milk fever risk.');
+      }
+    }
+
     return {
       base,
       notes
     };
-  }, [species, stage, breed, milkYield, marbling, colorFocus, shelfLife]);
+  }, [species, stage, breed, milkYield, marbling, colorFocus, shelfLife, dryCowStrategy, dcadTarget, maxCaGPerDay, xzelitDose]);
 
   // Calculate formulation
   const calc = useMemo(() => {
@@ -1421,7 +1468,82 @@ const App = () => {
     className: "tooltip-pop"
   }, "Vit E 500\u20131000 IU/head/day for last 100 days pre-slaughter extends case life 2\u20134 days. Fe & Cu capped to slow lipid oxidation."))), /*#__PURE__*/React.createElement("p", {
     className: "text-slate-500 text-xs"
-  }, "Vit E 200 IU/kg DM + Fe/Cu capped"))))), species === 'Sheep' && /*#__PURE__*/React.createElement("div", {
+  }, "Vit E 200 IU/kg DM + Fe/Cu capped"))))),
+  // ---- Dry Cow Milk-Fever Prevention Strategy panel ----
+  species === 'Dairy' && (stage === 'Close-up Dry' || stage === 'Far-off Dry') && /*#__PURE__*/React.createElement("section", {
+    className: "bg-white rounded-xl shadow-sm border border-purple-200 p-5"
+  },
+    /*#__PURE__*/React.createElement("h2", { className: "font-semibold flex items-center gap-2 mb-3 pb-2 border-b" },
+      /*#__PURE__*/React.createElement("i", { className: "fas fa-cow text-purple-600" }),
+      " Dry Cow Milk-Fever Strategy"
+    ),
+    /*#__PURE__*/React.createElement("p", { className: "text-[11px] text-slate-500 mb-3" },
+      "Pick the prevention approach for this close-up diet. Each triggers different additive recommendations and targets."
+    ),
+    /*#__PURE__*/React.createElement("div", { className: "space-y-2" },
+      [
+        { id: 'standard', label: 'Standard (no intervention)', desc: 'Baseline premix only. Not recommended for high-yielding herds.' },
+        { id: 'dcad',     label: 'Negative DCAD',               desc: 'Acidify with anionic salts. Target urine pH 6.0–6.5.' },
+        { id: 'pbinder',  label: 'P-binder (Vilofoss X-Zelit)', desc: 'Binds rumen P → bone mobilises Ca + P. No DCAD manipulation.' },
+        { id: 'lowCa',    label: 'Low Calcium (Goff method)',   desc: 'Restrict dietary Ca to prime parathyroid pre-calving.' },
+        { id: 'lowP',     label: 'Low Phosphorus',              desc: 'Restrict dietary P (~30 g/d) to activate vitamin-D pathway.' },
+      ].map(opt =>
+        /*#__PURE__*/React.createElement("label", {
+          key: opt.id,
+          className: `flex items-start gap-2 p-2 rounded-lg border cursor-pointer text-xs ${dryCowStrategy === opt.id ? 'bg-purple-50 border-purple-300' : 'bg-white border-slate-200 hover:bg-slate-50'}`
+        },
+          /*#__PURE__*/React.createElement("input", {
+            type: "radio",
+            name: "dryCowStrategy",
+            checked: dryCowStrategy === opt.id,
+            onChange: () => setDryCowStrategy(opt.id),
+            className: "mt-0.5 accent-purple-600"
+          }),
+          /*#__PURE__*/React.createElement("div", { className: "flex-1" },
+            /*#__PURE__*/React.createElement("div", { className: "font-semibold text-slate-800" }, opt.label),
+            /*#__PURE__*/React.createElement("div", { className: "text-slate-500 text-[10px]" }, opt.desc)
+          )
+        )
+      )
+    ),
+    // DCAD target slider (only when DCAD strategy picked)
+    dryCowStrategy === 'dcad' && /*#__PURE__*/React.createElement("div", { className: "mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200" },
+      /*#__PURE__*/React.createElement("label", { className: "text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between" },
+        /*#__PURE__*/React.createElement("span", null, "DCAD Target (mEq/kg DM)"),
+        /*#__PURE__*/React.createElement("span", { className: "text-sm font-black text-purple-700" }, dcadTarget)
+      ),
+      /*#__PURE__*/React.createElement("input", {
+        type: "range", min: -200, max: -50, step: 10, value: dcadTarget,
+        onChange: e => setDcadTarget(+e.target.value),
+        className: "w-full accent-purple-600 mt-1"
+      }),
+      /*#__PURE__*/React.createElement("div", { className: "text-[10px] text-slate-500 mt-1" }, "More negative = stronger acidification. Typical range −100 to −150 mEq/kg DM.")
+    ),
+    // Max Ca selector (only when lowCa strategy picked)
+    dryCowStrategy === 'lowCa' && /*#__PURE__*/React.createElement("div", { className: "mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200" },
+      /*#__PURE__*/React.createElement("label", { className: "text-[10px] font-bold text-slate-500 uppercase block mb-1" }, "Max daily Ca intake"),
+      /*#__PURE__*/React.createElement("div", { className: "flex gap-2" },
+        [30, 50, 70].map(val =>
+          /*#__PURE__*/React.createElement("button", {
+            key: val,
+            onClick: () => setMaxCaGPerDay(val),
+            className: `flex-1 py-2 text-xs rounded border font-bold ${maxCaGPerDay === val ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-300'}`
+          }, `${val} g/d`)
+        )
+      )
+    ),
+    // X-Zelit dose (only when pbinder strategy picked)
+    dryCowStrategy === 'pbinder' && /*#__PURE__*/React.createElement("div", { className: "mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200" },
+      /*#__PURE__*/React.createElement("label", { className: "text-[10px] font-bold text-slate-500 uppercase block mb-1" }, "X-Zelit dose (g/hd/d)"),
+      /*#__PURE__*/React.createElement("input", {
+        type: "number", min: 300, max: 600, step: 10, value: xzelitDose,
+        onChange: e => setXzelitDose(+e.target.value),
+        className: "w-full bg-white border border-slate-300 rounded-lg p-2 text-sm"
+      }),
+      /*#__PURE__*/React.createElement("div", { className: "text-[10px] text-slate-500 mt-1" }, "Typical 350–500 g/hd/d (= 10 g X-Zelit per g dietary P). Auto-populated in the Additives panel under 'P-binder (Dry Cow)'.")
+    )
+  ),
+  species === 'Sheep' && /*#__PURE__*/React.createElement("div", {
     className: "bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg shadow-sm"
   }, /*#__PURE__*/React.createElement("h4", {
     className: "font-bold text-amber-800 text-sm flex items-center gap-2"
@@ -1466,7 +1588,7 @@ const App = () => {
   }, "Set daily dose (grams per head per day) for any additive you want in the premix. Dose + price contribute to the final cost. Monensin has regulatory limits in some regions \u2014 check your local rules."),
   /*#__PURE__*/React.createElement("div", {
     className: "space-y-3 text-xs"
-  }, ['Yeast/DFM','Ionophore','Buffer','RP-AA','RP-Vitamin','DCAD Anionic Salt','Glucogenic Energy','Slow-release N','Enzyme','Methane inhibitor','Phytobiotic','Mycotoxin binder','Tannin','Flavor/Palatability','Metabolic modifier'].map(cat =>
+  }, ['Yeast/DFM','Ionophore','Buffer','RP-AA','RP-Vitamin','DCAD Anionic Salt','P-binder (Dry Cow)','Glucogenic Energy','Slow-release N','Enzyme','Methane inhibitor','Phytobiotic','Mycotoxin binder','Tannin','Flavor/Palatability','Metabolic modifier'].map(cat =>
     /*#__PURE__*/React.createElement("div", { key: cat, className: "bg-slate-50 border border-slate-200 rounded-lg p-2" },
       /*#__PURE__*/React.createElement("div", { className: "font-bold text-slate-600 text-[10px] uppercase mb-1" }, cat),
       ADDITIVES.filter(a => a.category === cat).map(a =>
