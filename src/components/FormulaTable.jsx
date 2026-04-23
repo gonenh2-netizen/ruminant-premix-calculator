@@ -5,6 +5,7 @@ const categoryStyle = {
   Inorganic: 'bg-slate-100 text-slate-700',
   Blend:     'bg-indigo-100 text-indigo-800',
   Vitamin:   'bg-amber-100 text-amber-800',
+  Additive:  'bg-purple-100 text-purple-800',
   Carrier:   'bg-slate-100 text-slate-500',
 };
 

@@ -23,6 +23,7 @@
 
 import { MINERAL_KEYS, VITAMIN_KEYS, NUTRIENT_LABELS } from '../data/requirements.js';
 import { productsFor, unifiedCatalog } from '../data/products.js';
+import { ADDITIVES } from '../data/additives.js';
 
 export function calcFormulation({
   adjustedReqs,
@@ -39,6 +40,7 @@ export function calcFormulation({
   CARRIERS,
   customProducts = [],
   cuCeiling = null,
+  additiveDose = {},
 }) {
   const reqs = adjustedReqs.base;
   const ingredients = [];
@@ -245,6 +247,50 @@ export function calcFormulation({
         `Reduce Cu sources or lower organic Cu dose.`
       );
     }
+  }
+
+  // 6b. Feed additives (yeast, ionophores, RP-AA, buffers, DCAD salts, etc.)
+  // Each additive contributes grams to the premix dose and cost to the total.
+  // Minerals / vitamins contributed by additives (e.g. anionic salts supplying
+  // Ca/Mg/Cl) are NOT credited to the mineral deficit — those macros are not
+  // tracked in this tool. Additives are advisory on top of the premix math.
+  for (const [id, gPerHead] of Object.entries(additiveDose || {})) {
+    const g = +gPerHead || 0;
+    if (g <= 0) continue;
+    const a = ADDITIVES.find((x) => x.id === id);
+    if (!a) continue;
+
+    // Safety check: enforce maxDose (ionophore toxicity ceiling, etc.)
+    if (a.maxDose != null && g > a.maxDose) {
+      warnings.push(
+        `${a.name} dose ${g.toFixed(2)} g/hd/d exceeds safety ceiling of ${a.maxDose} g/hd/d. ${a.maxDoseNote || 'Reduce the dose.'}`
+      );
+    }
+    // Species / stage applicability check
+    if (!a.species.includes(species)) {
+      warnings.push(`${a.name} is not labelled for ${species}. Review before use.`);
+    }
+    if (a.regulatoryNote) {
+      warnings.push(`${a.name}: ${a.regulatoryNote}`);
+    }
+
+    const pricePerKg = prices[id] ?? a.price;
+    const cost = (g * pricePerKg) / 1000;
+    totalActiveG += g;
+    totalCostPerDose += cost;
+    ingredients.push({
+      key: id,
+      name: a.name,
+      brand: a.brand,
+      nutrient: '-',
+      type: a.category,
+      category: 'Additive',
+      perDoseG: g,
+      perTonKg: (g / dose) * 1000,
+      pricePerKg,
+      costPerDose: cost,
+      note: a.note,
+    });
   }
 
   // 7. Carrier fills the balance

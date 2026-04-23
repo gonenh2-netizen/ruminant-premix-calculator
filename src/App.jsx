@@ -3,6 +3,7 @@ import { REQS } from './data/requirements.js';
 import { PRODUCTS } from './data/products.js';
 import { BLENDS } from './data/blends.js';
 import { VITAMIN_SOURCES, CARRIERS, CURRENCIES } from './data/misc.js';
+import { ADDITIVES } from './data/additives.js';
 import { adjustReqs } from './logic/adjustReqs.js';
 import { calcFormulation } from './logic/calcFormulation.js';
 import { useCustomProducts, useSavedFormulations } from './hooks/useCustomProducts.js';
@@ -12,6 +13,8 @@ import { InorganicSourcesPanel } from './components/InorganicSourcesPanel.jsx';
 import { MineralDeliveryTable } from './components/MineralDeliveryTable.jsx';
 import { PrintableReport } from './components/PrintableReport.jsx';
 import { RequirementsTable } from './components/RequirementsTable.jsx';
+import { AdditivesPanel } from './components/AdditivesPanel.jsx';
+import { DryCowStrategyPanel } from './components/DryCowStrategyPanel.jsx';
 import { CustomProductModal } from './components/CustomProductModal.jsx';
 import { CustomProductsList } from './components/CustomProductsList.jsx';
 import { BioavailGuide } from './components/BioavailGuide.jsx';
@@ -59,6 +62,7 @@ function defaultPrices() {
   BLENDS.forEach((b) => { p[b.id] = b.price; });
   for (const v in VITAMIN_SOURCES) p[v] = VITAMIN_SOURCES[v].price;
   CARRIERS.forEach((c) => { p[c.id] = c.price; });
+  ADDITIVES.forEach((a) => { p[a.id] = a.price; });
   return p;
 }
 
@@ -79,6 +83,11 @@ export default function App() {
   const [inorgSrc, setInorgSrc] = useState(DEFAULT_STATE.inorgSrc);
   const [prices, setPrices] = useState(defaultPrices);
   const [nutrientOverrides, setNutrientOverrides] = useState({});
+  const [additiveDose, setAdditiveDose] = useState({});
+  const [dryCowStrategy, setDryCowStrategy] = useState('standard');
+  const [dcadTarget, setDcadTarget] = useState(-100);
+  const [maxCaGPerDay, setMaxCaGPerDay] = useState(50);
+  const [xzelitDose, setXzelitDose] = useState(400);
   const [modalOpen, setModalOpen] = useState(false);
 
   const { customProducts, addCustom, removeCustom } = useCustomProducts();
@@ -92,8 +101,13 @@ export default function App() {
   }, [species]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const adjustedReqs = useMemo(
-    () => adjustReqs({ REQS, species, stage, breed, milkYield, marbling, colorFocus, shelfLife, nutrientOverrides }),
-    [species, stage, breed, milkYield, marbling, colorFocus, shelfLife, nutrientOverrides],
+    () => adjustReqs({
+      REQS, species, stage, breed, milkYield, marbling, colorFocus, shelfLife,
+      nutrientOverrides,
+      dryCowStrategy, dcadTarget, maxCaGPerDay, xzelitDose,
+    }),
+    [species, stage, breed, milkYield, marbling, colorFocus, shelfLife, nutrientOverrides,
+     dryCowStrategy, dcadTarget, maxCaGPerDay, xzelitDose],
   );
 
   const calc = useMemo(
@@ -103,9 +117,26 @@ export default function App() {
       PRODUCTS, BLENDS, VITAMIN_SOURCES, CARRIERS,
       customProducts,
       cuCeiling: REQS[species].cuCeiling || null,
+      additiveDose,
     }),
-    [adjustedReqs, dmi, dose, organicSelections, inorgSrc, prices, carrier, customProducts, species],
+    [adjustedReqs, dmi, dose, organicSelections, inorgSrc, prices, carrier, customProducts, species, additiveDose],
   );
+
+  // When pbinder strategy is chosen, auto-populate the X-Zelit additive dose
+  // with the user's chosen xzelitDose. When strategy moves away from pbinder,
+  // remove xzelit from the additive map so it doesn't linger.
+  useEffect(() => {
+    if (dryCowStrategy === 'pbinder') {
+      setAdditiveDose((prev) => ({ ...prev, xzelit: xzelitDose }));
+    } else {
+      setAdditiveDose((prev) => {
+        if (!prev.xzelit) return prev;
+        const next = { ...prev };
+        delete next.xzelit;
+        return next;
+      });
+    }
+  }, [dryCowStrategy, xzelitDose]);
 
   const c = CURRENCIES[currency];
   const fmt = (usd, decimals = 2) => `${c.symbol}${(usd * c.rate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: decimals })}`;
@@ -116,7 +147,9 @@ export default function App() {
   const currentState = {
     species, breed, stage, dmi, dose, milkYield, carrier, currency, batchKg,
     marbling, colorFocus, shelfLife,
-    organicSelections, inorgSrc, nutrientOverrides, priceOverrides: prices,
+    organicSelections, inorgSrc, nutrientOverrides,
+    additiveDose, dryCowStrategy, dcadTarget, maxCaGPerDay, xzelitDose,
+    priceOverrides: prices,
   };
 
   const loadFormulation = (s) => {
@@ -143,6 +176,11 @@ export default function App() {
     }
     if (s.inorgSrc) setInorgSrc(s.inorgSrc);
     setNutrientOverrides(s.nutrientOverrides || {});
+    setAdditiveDose(s.additiveDose || {});
+    setDryCowStrategy(s.dryCowStrategy || 'standard');
+    setDcadTarget(s.dcadTarget ?? -100);
+    setMaxCaGPerDay(s.maxCaGPerDay ?? 50);
+    setXzelitDose(s.xzelitDose ?? 400);
     if (s.priceOverrides) setPrices((prev) => ({ ...prev, ...s.priceOverrides }));
   };
 
@@ -187,6 +225,15 @@ export default function App() {
             currentState={currentState}
             onLoad={loadFormulation}
           />
+
+          {species === 'Dairy' && (stage === 'Close-up Dry' || stage === 'Far-off Dry') && (
+            <DryCowStrategyPanel
+              dryCowStrategy={dryCowStrategy} setDryCowStrategy={setDryCowStrategy}
+              dcadTarget={dcadTarget} setDcadTarget={setDcadTarget}
+              maxCaGPerDay={maxCaGPerDay} setMaxCaGPerDay={setMaxCaGPerDay}
+              xzelitDose={xzelitDose} setXzelitDose={setXzelitDose}
+            />
+          )}
         </div>
 
         <div className="lg:col-span-2 space-y-5">
@@ -220,6 +267,13 @@ export default function App() {
         <InorganicSourcesPanel
           customProducts={customProducts}
           inorgSrc={inorgSrc} setInorgSrc={setInorgSrc}
+          prices={prices} setPrices={setPrices}
+          fmt={fmt}
+        />
+
+        <AdditivesPanel
+          species={species} stage={stage}
+          additiveDose={additiveDose} setAdditiveDose={setAdditiveDose}
           prices={prices} setPrices={setPrices}
           fmt={fmt}
         />

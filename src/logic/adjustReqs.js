@@ -13,7 +13,11 @@
  *            defaults: the pre-override values (so the UI can show the NRC default) }
  */
 
-export function adjustReqs({ REQS, species, stage, breed, milkYield, marbling, colorFocus, shelfLife, nutrientOverrides = {} }) {
+export function adjustReqs({
+  REQS, species, stage, breed, milkYield, marbling, colorFocus, shelfLife,
+  nutrientOverrides = {},
+  dryCowStrategy = 'standard', dcadTarget = -100, maxCaGPerDay = 50, xzelitDose = 400,
+}) {
   const base = { ...REQS[species].stages[stage] };
   const notes = [];
 
@@ -103,6 +107,38 @@ export function adjustReqs({ REQS, species, stage, breed, milkYield, marbling, c
       // stricter and safe. Other species just cap at 10.
       base.Cu = Math.min(base.Cu, 10);
       notes.push('Shelf life ON: Vit E ≥200 IU/kg DM, Se 0.30. Fe/Cu capped to slow lipid oxidation.');
+    }
+  }
+
+  // Dry-cow milk-fever prevention strategy (Dairy + Close-up/Far-off Dry only).
+  const isDryCowStage = species === 'Dairy' && (stage === 'Close-up Dry' || stage === 'Far-off Dry');
+  if (isDryCowStage && dryCowStrategy && dryCowStrategy !== 'standard') {
+    if (dryCowStrategy === 'dcad') {
+      base.VitD = Math.max(base.VitD || 0, 1500);
+      notes.push(
+        `DCAD strategy: target ${dcadTarget} mEq/kg DM. ` +
+        `Include anionic salts (SoyChlor / Bio-Chlor / Animate, or generic NH₄Cl + (NH₄)₂SO₄ + MgSO₄) from the DCAD Anionic Salt category. ` +
+        `Target urine pH 6.0–6.5. Ca 150–180 g/hd/d. Vit D3 bumped to ≥1500 IU/kg DM.`
+      );
+    } else if (dryCowStrategy === 'pbinder') {
+      base.VitD = Math.max(base.VitD || 0, 1500);
+      notes.push(
+        `P-binder strategy: X-Zelit ${xzelitDose} g/hd/d auto-added to the premix for the last 14–21 days pre-calving. ` +
+        `Binds rumen P → blood P drops → bone mobilises Ca + P. ` +
+        `No DCAD manipulation, no low-K forage, no urine pH monitoring. Vit D3 bumped to ≥1500 IU/kg DM.`
+      );
+    } else if (dryCowStrategy === 'lowCa') {
+      notes.push(
+        `Low-Ca strategy: cap dietary Ca at ${maxCaGPerDay} g/hd/d to prime parathyroid response. ` +
+        `Remove limestone carrier; switch to Rice Hulls or Wheat Middlings. ` +
+        `Hard to achieve with alfalfa-based diets — pair with cereal straw or corn silage.`
+      );
+    } else if (dryCowStrategy === 'lowP') {
+      notes.push(
+        `Low-P strategy: cap dietary P at ~30 g/hd/d. ` +
+        `Low blood P cues vitamin-D activation → Ca absorption ↑. ` +
+        `Manage via forage choice (low-P corn silage; avoid DDGS / brewers grains).`
+      );
     }
   }
 
