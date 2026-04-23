@@ -654,37 +654,84 @@ const NUTRIENT_LABELS = {
 };
 
 /* ===================================================================
-   ADDITIVES CATALOG — yeasts, ionophores, buffers, RP-AAs, RP-vitamins,
-   methane inhibitors, phytobiotics, mycotoxin binders, tannins.
+   ADDITIVES CATALOG — 15 categories covering yeast/DFM, ionophores,
+   buffers, RP amino acids, RP B-vitamins/25-OH-D3, methane inhibitors,
+   phytobiotics, mycotoxin binders, tannins, DCAD anionic salts,
+   glucogenic energy, slow-release N, enzymes, flavor, metabolic modifiers.
    Bypass fat intentionally EXCLUDED (added separately in TMR, not premix).
 =================================================================== */
 const ADDITIVES = [
+  // Yeast / DFM
   { id:'yeast_live_yeasacc',     name:'Yea-Sacc 1026 (Live yeast)',          brand:'Alltech',        category:'Yeast/DFM',          typicalDose:4,   price:18.00, note:'S. cerevisiae 1026, 10¹⁰ CFU/g. Rumen pH + fiber digestion.' },
   { id:'yeast_live_levucell',    name:'Levucell SC (Live yeast)',            brand:'Lallemand',      category:'Yeast/DFM',          typicalDose:5,   price:19.50, note:'S. cerevisiae CNCM I-1077. Acidosis resistance + NDF.' },
   { id:'yeast_live_safcattle',   name:'SafCattle / ActiSaf (Live yeast)',    brand:'Phileo/Lesaffre',category:'Yeast/DFM',          typicalDose:4,   price:16.00, note:'S. cerevisiae Sc47. SARA risk reduction.' },
   { id:'yeast_dead_diamondv',    name:'Diamond V XP / XPC (Yeast culture)',  brand:'Diamond V',      category:'Yeast/DFM',          typicalDose:15,  price:8.50,  note:'Inactivated yeast culture + metabolites. Prebiotic / immunomodulator.' },
   { id:'yeast_cellwall_imagro',  name:'IMAGRO / Yeast cell wall (MOS+βG)',   brand:'Biomin/DSM',     category:'Yeast/DFM',          typicalDose:3,   price:20.00, note:'Yeast cell wall, MOS + β-glucan. Pathogen binding, immune.' },
   { id:'dfm_bovamine',           name:'Bovamine Dairy Plus (DFM)',           brand:'Nutr. Phys. Co.',category:'Yeast/DFM',          typicalDose:2,   price:24.00, note:'L. acidophilus + P. freudenreichii. Milk yield + propionate.' },
-  { id:'monensin_rumensin',      name:'Monensin (Rumensin)',                 brand:'Elanco',         category:'Ionophore',          typicalDose:1.5, price:22.00, note:'Target 300–450 mg monensin/hd/d. +2–6% feed efficiency. NOTE: banned for dairy in EU.' },
+  { id:'dfm_chrhansen',          name:'BioPlus YC (Bacillus DFM)',           brand:'Chr. Hansen',    category:'Yeast/DFM',          typicalDose:3,   price:22.00, note:'B. subtilis + B. licheniformis spores. Stable under pelleting.' },
+  // Ionophore
+  { id:'monensin_rumensin',      name:'Monensin (Rumensin)',                 brand:'Elanco',         category:'Ionophore',          typicalDose:1.5, price:22.00, note:'300–450 mg monensin/hd/d. +2–6% feed efficiency. NOTE: banned for dairy in EU.' },
   { id:'lasalocid_bovatec',      name:'Lasalocid (Bovatec)',                 brand:'Zoetis',         category:'Ionophore',          typicalDose:1.2, price:20.00, note:'Alternative to monensin. Beef only.' },
-  { id:'buffer_sodabicarb',      name:'Sodium Bicarbonate (NaHCO₃)',         brand:'Generic',        category:'Buffer',             typicalDose:150, price:0.60,  note:'Rumen buffer. ~0.7–1.0% of TMR DM (usually added to TMR, not premix).' },
+  { id:'salinomycin',            name:'Salinomycin',                         brand:'Generic',        category:'Ionophore',          typicalDose:1.0, price:18.00, note:'Beef feedlot ionophore. Cost-effective alternative.' },
+  // Buffer
+  { id:'buffer_sodabicarb',      name:'Sodium Bicarbonate (NaHCO₃)',         brand:'Generic',        category:'Buffer',             typicalDose:150, price:0.60,  note:'Rumen buffer. ~0.7–1.0% of TMR DM.' },
   { id:'buffer_acidbuf',         name:'Acid Buf (Calcified marine algae)',   brand:'Celtic Sea Min.',category:'Buffer',             typicalDose:50,  price:2.80,  note:'Lithothamnium; slow-release buffer. Out-performs NaHCO₃ at lower dose.' },
   { id:'buffer_mgo',             name:'Magnesium Oxide (MgO)',               brand:'Generic',        category:'Buffer',             typicalDose:50,  price:0.90,  note:'Secondary buffer + Mg source. Use with NaHCO₃.' },
+  { id:'buffer_kemin_c',         name:'Rumen Buffer C',                      brand:'Kemin',          category:'Buffer',             typicalDose:80,  price:1.80,  note:'Proprietary slow-release buffer blend. Dairy.' },
+  // RP-AA
   { id:'rp_met_smartamine',      name:'Smartamine M (RP Methionine)',        brand:'Adisseo',        category:'RP-AA',              typicalDose:18,  price:14.00, note:'75% DL-Met pH-protected. Target 7–10 g metabolizable Met/hd/d.' },
   { id:'rp_met_mepron',          name:'Mepron (RP Methionine)',              brand:'Evonik',         category:'RP-AA',              typicalDose:20,  price:12.50, note:'85% DL-Met in ethyl-cellulose matrix.' },
   { id:'rp_met_metasmart',       name:'MetaSmart (HMTBa Met)',               brand:'Adisseo',        category:'RP-AA',              typicalDose:25,  price:8.50,  note:'HMTBa form. Cheaper, partial rumen use.' },
-  { id:'rp_lys_ajipro',          name:'AjiPro-L (RP Lysine)',                brand:'Ajinomoto',      category:'RP-AA',              typicalDose:40,  price:9.50,  note:'Target 18–25 g metabolizable Lys/hd/d. Pair with Met for 3:1 ratio.' },
+  { id:'rp_lys_ajipro',          name:'AjiPro-L (RP Lysine)',                brand:'Ajinomoto',      category:'RP-AA',              typicalDose:40,  price:9.50,  note:'18–25 g metabolizable Lys/hd/d. Pair with Met at 3:1.' },
   { id:'rp_lys_lysigem',         name:'LysiGEM (RP Lysine)',                 brand:'Kemin',          category:'RP-AA',              typicalDose:50,  price:8.00,  note:'Encapsulated L-Lys HCl.' },
+  { id:'rp_hist',                name:'RP Histidine',                        brand:'Ajinomoto/Kemin',category:'RP-AA',              typicalDose:8,   price:25.00, note:'Emerging 3rd-limiting AA in high-yielding dairy.' },
+  // RP-Vitamin
   { id:'rp_choline_reashure',    name:'ReaShure (RP Choline)',               brand:'Balchem',        category:'RP-Vitamin',         typicalDose:60,  price:11.00, note:'15 g choline/hd/d close-up reduces fatty liver + boosts milk.' },
   { id:'rp_niacin_niashure',     name:'Niashure (RP Niacin)',                brand:'Balchem',        category:'RP-Vitamin',         typicalDose:18,  price:15.00, note:'6–12 g niacin/hd/d; heat stress + fresh cows.' },
+  { id:'hyd_rovimix',            name:'Rovimix Hy-D (25-OH-D3)',             brand:'DSM',            category:'RP-Vitamin',         typicalDose:0.7, price:180.00,note:'Pre-activated 25-OH-D3. Improves Ca homeostasis + hoof.' },
+  // DCAD Anionic Salt
+  { id:'dcad_soychlor',          name:'SoyChlor',                            brand:'West Central',   category:'DCAD Anionic Salt',  typicalDose:400, price:1.20,  note:'Soybean meal + HCl, ~4.5% Cl. Most palatable anionic product. Target DCAD −100 to −150 mEq/kg close-up.' },
+  { id:'dcad_biochlor',          name:'Bio-Chlor',                           brand:'Church & Dwight',category:'DCAD Anionic Salt',  typicalDose:400, price:1.10,  note:'Fermentation + anionic salts, ~6–7% Cl. US mainstream; good palatability.' },
+  { id:'dcad_animate',           name:'Animate',                             brand:'Phibro',         category:'DCAD Anionic Salt',  typicalDose:450, price:1.15,  note:'Anionic blend for close-up. Palatable.' },
+  { id:'dcad_xzelit',            name:'X-Zelit (Zeolite)',                   brand:'Vilofoss',       category:'DCAD Anionic Salt',  typicalDose:500, price:2.40,  note:'Synthetic zeolite binds dietary Ca pre-calving to prime parathyroid. Different mechanism, same goal.' },
+  { id:'dcad_nh4cl',             name:'Ammonium Chloride (NH₄Cl)',           brand:'Generic',        category:'DCAD Anionic Salt',  typicalDose:100, price:0.80,  note:'Cheapest acidogenic salt, 66% Cl. Very unpalatable — mix well.' },
+  { id:'dcad_nh4so4',            name:'Ammonium Sulfate ((NH₄)₂SO₄)',        brand:'Generic',        category:'DCAD Anionic Salt',  typicalDose:100, price:0.45,  note:'Acidogenic; S + N. Paired with NH₄Cl. Poor palatability.' },
+  { id:'dcad_mgso4',             name:'Magnesium Sulfate (Epsom)',           brand:'Generic',        category:'DCAD Anionic Salt',  typicalDose:80,  price:0.35,  note:'Supplies acidogenic SO₄ + Mg. Laxative at high doses.' },
+  { id:'dcad_cacl2',             name:'Calcium Chloride',                    brand:'Generic',        category:'DCAD Anionic Salt',  typicalDose:60,  price:0.70,  note:'Strongly acidogenic + Ca. Hygroscopic handling challenge.' },
+  // Glucogenic Energy
+  { id:'gluco_propyleneglycol',  name:'Propylene Glycol (liquid)',           brand:'Generic',        category:'Glucogenic Energy',  typicalDose:250, price:2.10,  note:'Glucogenic precursor. Standard sub-clinical ketosis treatment. Usually drenched.' },
+  { id:'gluco_capropionate',     name:'Calcium Propionate',                  brand:'Generic',        category:'Glucogenic Energy',  typicalDose:200, price:2.80,  note:'Propionic acid precursor + Ca. Anti-ketosis + anti-milk-fever dual benefit.' },
+  { id:'gluco_glycerol',         name:'Glycerol (dried / pelleted)',         brand:'Generic',        category:'Glucogenic Energy',  typicalDose:400, price:1.20,  note:'Glucogenic; ~2.2 Mcal NEL/kg. Biodiesel by-product — regional pricing.' },
+  // Slow-release N
+  { id:'optigen',                name:'Optigen (Slow-release urea)',         brand:'Alltech',        category:'Slow-release N',     typicalDose:100, price:2.30,  note:'Polymer-coated urea. Replaces veg. protein; matches rumen NH₃ demand.' },
+  { id:'nitroshure',             name:'NitroShure',                          brand:'Balchem',        category:'Slow-release N',     typicalDose:80,  price:2.50,  note:'Controlled-release urea. Alternative to Optigen.' },
+  // Enzyme
+  { id:'enzyme_fibrozyme',       name:'FibroZyme (Fibrolytic enzyme)',       brand:'Alltech',        category:'Enzyme',             typicalDose:15,  price:22.00, note:'Cellulase/xylanase. Improves NDF digestion in high-forage diets.' },
+  { id:'enzyme_ronozyme',        name:'Ronozyme RumiStar (Amylase)',         brand:'DSM',            category:'Enzyme',             typicalDose:10,  price:28.00, note:'α-amylase. Energy capture from starch; transition cow support.' },
+  // Methane inhibitor
   { id:'bovaer_3nop',            name:'Bovaer (3-NOP)',                      brand:'DSM-Firmenich',  category:'Methane inhibitor',  typicalDose:1.5, price:55.00, note:'60–80 mg/kg DM. Methane −25 to −40%.' },
   { id:'mootral',                name:'Mootral (garlic + citrus)',           brand:'Mootral',        category:'Methane inhibitor',  typicalDose:15,  price:6.00,  note:'Phytogenic; methane −20 to −30%.' },
+  { id:'asparagopsis',           name:'Asparagopsis seaweed',                brand:'Sea Forest / Volta Greentech', category:'Methane inhibitor', typicalDose:3, price:140.00, note:'Red seaweed (bromoform). Methane −80% in trials. High cost, limited supply.' },
+  // Phytobiotic
   { id:'agolin_ruminant',        name:'Agolin Ruminant (EO blend)',          brand:'Agolin',         category:'Phytobiotic',        typicalDose:1,   price:45.00, note:'Coriander + clove + geranyl acetate. Feed efficiency + methane −10%.' },
   { id:'phyto_crina',            name:'Crina Ruminants',                     brand:'DSM-Firmenich',  category:'Phytobiotic',        typicalDose:1.2, price:48.00, note:'Essential-oil premix. Feed efficiency + milk yield.' },
+  { id:'digestarom_dc',          name:'Digestarom DC',                       brand:'Biomin/DSM',     category:'Phytobiotic',        typicalDose:2,   price:32.00, note:'Phytogenic + mannose-rich carb complex. Digestive support.' },
+  { id:'oregostim',              name:'Oregostim (Oregano oil)',             brand:'Meriden',        category:'Phytobiotic',        typicalDose:2,   price:28.00, note:'Oregano EO. Antimicrobial; subclinical mastitis + GI health.' },
+  { id:'yucca_microaid',         name:'Micro-Aid (Yucca schidigera)',        brand:'DPI Global',     category:'Phytobiotic',        typicalDose:2,   price:14.00, note:'Yucca saponins bind rumen ammonia. Heat stress + environmental N ↓.' },
+  // Mycotoxin binder
   { id:'mycotoxin_mycofix',      name:'Mycofix (multi-component)',           brand:'Biomin/DSM',     category:'Mycotoxin binder',   typicalDose:50,  price:6.50,  note:'Bentonite + enzymes + plant extracts. Broad-spectrum.' },
   { id:'mycotoxin_mycosorb',     name:'Mycosorb A+ (yeast cell wall)',       brand:'Alltech',        category:'Mycotoxin binder',   typicalDose:30,  price:8.00,  note:'Modified yeast cell wall.' },
   { id:'mycotoxin_bentonite',    name:'Sodium/Calcium Bentonite',            brand:'Generic',        category:'Mycotoxin binder',   typicalDose:100, price:0.40,  note:'Basic clay binder. Strongest vs aflatoxin.' },
+  { id:'mycotoxin_fixat',        name:'Fixat (clay + enzyme binder)',        brand:'Agrofeed',       category:'Mycotoxin binder',   typicalDose:40,  price:4.50,  note:'Clay + biotransformation enzymes. Popular CIS / Eastern Europe.' },
+  // Tannin
   { id:'tannin_bypro',           name:'ByPro (chestnut + quebracho)',        brand:'Silvateam',      category:'Tannin',             typicalDose:50,  price:4.50,  note:'Condensed + hydrolyzable tannins. Protein bypass + methane ↓ + parasite ↓.' },
+  { id:'tannin_silvafeed_q',     name:'SilvaFeed Q (quebracho)',             brand:'Silvateam',      category:'Tannin',             typicalDose:40,  price:4.00,  note:'Pure quebracho condensed tannin. Parasite control in small ruminants.' },
+  // Flavor / Palatability
+  { id:'flavor_luctarom',        name:'Luctarom (Flavor)',                   brand:'Lucta',          category:'Flavor/Palatability',typicalDose:1,   price:32.00, note:'Flavor enhancer — masks bitter anionic salts / ionophores.' },
+  { id:'flavor_sucram',          name:'Sucram (Sweetener)',                  brand:'Pancosma',       category:'Flavor/Palatability',typicalDose:0.5, price:48.00, note:'High-intensity saccharin. Boosts intake of bitter close-up TMR.' },
+  // Metabolic modifier
+  { id:'betaine_betafin',        name:'Betafin (Betaine anhydrous)',         brand:'DuPont / IFF',   category:'Metabolic modifier', typicalDose:25,  price:6.50,  note:'Methyl donor + osmolyte. Heat-stress + Met-sparing + milk yield.' },
+  { id:'betaine_hcl',            name:'Betaine HCl',                         brand:'Generic',        category:'Metabolic modifier', typicalDose:30,  price:5.00,  note:'Cheaper betaine form. Less stable in moist feeds.' },
 ];
 
 /* ===================================================================
@@ -1419,7 +1466,7 @@ const App = () => {
   }, "Set daily dose (grams per head per day) for any additive you want in the premix. Dose + price contribute to the final cost. Monensin has regulatory limits in some regions \u2014 check your local rules."),
   /*#__PURE__*/React.createElement("div", {
     className: "space-y-3 text-xs"
-  }, ['Yeast/DFM','Ionophore','Buffer','RP-AA','RP-Vitamin','Methane inhibitor','Phytobiotic','Mycotoxin binder','Tannin'].map(cat =>
+  }, ['Yeast/DFM','Ionophore','Buffer','RP-AA','RP-Vitamin','DCAD Anionic Salt','Glucogenic Energy','Slow-release N','Enzyme','Methane inhibitor','Phytobiotic','Mycotoxin binder','Tannin','Flavor/Palatability','Metabolic modifier'].map(cat =>
     /*#__PURE__*/React.createElement("div", { key: cat, className: "bg-slate-50 border border-slate-200 rounded-lg p-2" },
       /*#__PURE__*/React.createElement("div", { className: "font-bold text-slate-600 text-[10px] uppercase mb-1" }, cat),
       ADDITIVES.filter(a => a.category === cat).map(a =>
