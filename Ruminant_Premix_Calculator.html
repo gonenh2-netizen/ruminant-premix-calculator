@@ -654,6 +654,40 @@ const NUTRIENT_LABELS = {
 };
 
 /* ===================================================================
+   ADDITIVES CATALOG — yeasts, ionophores, buffers, RP-AAs, RP-vitamins,
+   methane inhibitors, phytobiotics, mycotoxin binders, tannins.
+   Bypass fat intentionally EXCLUDED (added separately in TMR, not premix).
+=================================================================== */
+const ADDITIVES = [
+  { id:'yeast_live_yeasacc',     name:'Yea-Sacc 1026 (Live yeast)',          brand:'Alltech',        category:'Yeast/DFM',          typicalDose:4,   price:18.00, note:'S. cerevisiae 1026, 10¹⁰ CFU/g. Rumen pH + fiber digestion.' },
+  { id:'yeast_live_levucell',    name:'Levucell SC (Live yeast)',            brand:'Lallemand',      category:'Yeast/DFM',          typicalDose:5,   price:19.50, note:'S. cerevisiae CNCM I-1077. Acidosis resistance + NDF.' },
+  { id:'yeast_live_safcattle',   name:'SafCattle / ActiSaf (Live yeast)',    brand:'Phileo/Lesaffre',category:'Yeast/DFM',          typicalDose:4,   price:16.00, note:'S. cerevisiae Sc47. SARA risk reduction.' },
+  { id:'yeast_dead_diamondv',    name:'Diamond V XP / XPC (Yeast culture)',  brand:'Diamond V',      category:'Yeast/DFM',          typicalDose:15,  price:8.50,  note:'Inactivated yeast culture + metabolites. Prebiotic / immunomodulator.' },
+  { id:'yeast_cellwall_imagro',  name:'IMAGRO / Yeast cell wall (MOS+βG)',   brand:'Biomin/DSM',     category:'Yeast/DFM',          typicalDose:3,   price:20.00, note:'Yeast cell wall, MOS + β-glucan. Pathogen binding, immune.' },
+  { id:'dfm_bovamine',           name:'Bovamine Dairy Plus (DFM)',           brand:'Nutr. Phys. Co.',category:'Yeast/DFM',          typicalDose:2,   price:24.00, note:'L. acidophilus + P. freudenreichii. Milk yield + propionate.' },
+  { id:'monensin_rumensin',      name:'Monensin (Rumensin)',                 brand:'Elanco',         category:'Ionophore',          typicalDose:1.5, price:22.00, note:'Target 300–450 mg monensin/hd/d. +2–6% feed efficiency. NOTE: banned for dairy in EU.' },
+  { id:'lasalocid_bovatec',      name:'Lasalocid (Bovatec)',                 brand:'Zoetis',         category:'Ionophore',          typicalDose:1.2, price:20.00, note:'Alternative to monensin. Beef only.' },
+  { id:'buffer_sodabicarb',      name:'Sodium Bicarbonate (NaHCO₃)',         brand:'Generic',        category:'Buffer',             typicalDose:150, price:0.60,  note:'Rumen buffer. ~0.7–1.0% of TMR DM (usually added to TMR, not premix).' },
+  { id:'buffer_acidbuf',         name:'Acid Buf (Calcified marine algae)',   brand:'Celtic Sea Min.',category:'Buffer',             typicalDose:50,  price:2.80,  note:'Lithothamnium; slow-release buffer. Out-performs NaHCO₃ at lower dose.' },
+  { id:'buffer_mgo',             name:'Magnesium Oxide (MgO)',               brand:'Generic',        category:'Buffer',             typicalDose:50,  price:0.90,  note:'Secondary buffer + Mg source. Use with NaHCO₃.' },
+  { id:'rp_met_smartamine',      name:'Smartamine M (RP Methionine)',        brand:'Adisseo',        category:'RP-AA',              typicalDose:18,  price:14.00, note:'75% DL-Met pH-protected. Target 7–10 g metabolizable Met/hd/d.' },
+  { id:'rp_met_mepron',          name:'Mepron (RP Methionine)',              brand:'Evonik',         category:'RP-AA',              typicalDose:20,  price:12.50, note:'85% DL-Met in ethyl-cellulose matrix.' },
+  { id:'rp_met_metasmart',       name:'MetaSmart (HMTBa Met)',               brand:'Adisseo',        category:'RP-AA',              typicalDose:25,  price:8.50,  note:'HMTBa form. Cheaper, partial rumen use.' },
+  { id:'rp_lys_ajipro',          name:'AjiPro-L (RP Lysine)',                brand:'Ajinomoto',      category:'RP-AA',              typicalDose:40,  price:9.50,  note:'Target 18–25 g metabolizable Lys/hd/d. Pair with Met for 3:1 ratio.' },
+  { id:'rp_lys_lysigem',         name:'LysiGEM (RP Lysine)',                 brand:'Kemin',          category:'RP-AA',              typicalDose:50,  price:8.00,  note:'Encapsulated L-Lys HCl.' },
+  { id:'rp_choline_reashure',    name:'ReaShure (RP Choline)',               brand:'Balchem',        category:'RP-Vitamin',         typicalDose:60,  price:11.00, note:'15 g choline/hd/d close-up reduces fatty liver + boosts milk.' },
+  { id:'rp_niacin_niashure',     name:'Niashure (RP Niacin)',                brand:'Balchem',        category:'RP-Vitamin',         typicalDose:18,  price:15.00, note:'6–12 g niacin/hd/d; heat stress + fresh cows.' },
+  { id:'bovaer_3nop',            name:'Bovaer (3-NOP)',                      brand:'DSM-Firmenich',  category:'Methane inhibitor',  typicalDose:1.5, price:55.00, note:'60–80 mg/kg DM. Methane −25 to −40%.' },
+  { id:'mootral',                name:'Mootral (garlic + citrus)',           brand:'Mootral',        category:'Methane inhibitor',  typicalDose:15,  price:6.00,  note:'Phytogenic; methane −20 to −30%.' },
+  { id:'agolin_ruminant',        name:'Agolin Ruminant (EO blend)',          brand:'Agolin',         category:'Phytobiotic',        typicalDose:1,   price:45.00, note:'Coriander + clove + geranyl acetate. Feed efficiency + methane −10%.' },
+  { id:'phyto_crina',            name:'Crina Ruminants',                     brand:'DSM-Firmenich',  category:'Phytobiotic',        typicalDose:1.2, price:48.00, note:'Essential-oil premix. Feed efficiency + milk yield.' },
+  { id:'mycotoxin_mycofix',      name:'Mycofix (multi-component)',           brand:'Biomin/DSM',     category:'Mycotoxin binder',   typicalDose:50,  price:6.50,  note:'Bentonite + enzymes + plant extracts. Broad-spectrum.' },
+  { id:'mycotoxin_mycosorb',     name:'Mycosorb A+ (yeast cell wall)',       brand:'Alltech',        category:'Mycotoxin binder',   typicalDose:30,  price:8.00,  note:'Modified yeast cell wall.' },
+  { id:'mycotoxin_bentonite',    name:'Sodium/Calcium Bentonite',            brand:'Generic',        category:'Mycotoxin binder',   typicalDose:100, price:0.40,  note:'Basic clay binder. Strongest vs aflatoxin.' },
+  { id:'tannin_bypro',           name:'ByPro (chestnut + quebracho)',        brand:'Silvateam',      category:'Tannin',             typicalDose:50,  price:4.50,  note:'Condensed + hydrolyzable tannins. Protein bypass + methane ↓ + parasite ↓.' },
+];
+
+/* ===================================================================
    COMPONENT
 =================================================================== */
 const App = () => {
@@ -683,6 +717,8 @@ const App = () => {
   });
   // Ingredient exclusions (e.g., farm adds them separately)
   const [excluded, setExcluded] = useState({});
+  // Additive daily-dose state (g/hd/d, 0 = not included)
+  const [additiveDose, setAdditiveDose] = useState({});
   // Editable prices (per kg, in USD baseline; UI will convert)
   const [prices, setPrices] = useState(() => {
     const p = {};
@@ -691,6 +727,7 @@ const App = () => {
       if (v.inorg) p[`${k}_inorg`] = v.inorg.defaultPrice;
       if (v.org) p[`${k}_org`] = v.org.defaultPrice;
     });
+    ADDITIVES.forEach(a => { p[a.id] = a.price; });
     return p;
   });
 
@@ -896,7 +933,28 @@ const App = () => {
       });
     }
 
-    // Carrier
+    // Additives — each adds grams + cost directly (no nutrient accounting; they're
+    // functional additives, not mineral sources).
+    let additiveG = 0;
+    let additiveCostPerDose = 0;
+    const additivesInUse = [];
+    ADDITIVES.forEach(a => {
+      const g = +additiveDose[a.id] || 0;
+      if (g <= 0) return;
+      const cost = g * (prices[a.id] || a.price) / 1000;
+      additiveG += g;
+      additiveCostPerDose += cost;
+      additivesInUse.push({
+        key: a.id, name: a.name, brand: a.brand, nutrient: a.category, type: a.category,
+        perDoseG: g, perTonKg: (g/dose)*1000, pricePerKg: prices[a.id] || a.price,
+        costPerDose: cost, excluded: false
+      });
+    });
+    totalActiveG += additiveG;
+    totalCostPerDose += additiveCostPerDose;
+    ingredients.push(...additivesInUse);
+
+    // Carrier fills the remaining space
     const carrierG = Math.max(0, dose - totalActiveG);
     const carrierCostPerDose = carrierG * price(carrier) / 1000;
     totalCostPerDose += carrierCostPerDose;
@@ -934,7 +992,7 @@ const App = () => {
       // per-dose * (1,000,000 g / dose g) = per-ton in $
       currencyObj
     };
-  }, [adjustedReqs, dmi, dose, organicPct, excluded, prices, carrier, currency]);
+  }, [adjustedReqs, dmi, dose, organicPct, excluded, prices, carrier, currency, additiveDose]);
   const sp = REQS[species];
   const stageOptions = Object.keys(sp.stages);
   const toggleExcluded = name => setExcluded(prev => ({
@@ -1346,7 +1404,49 @@ const App = () => {
     className: "flex-1 accent-emerald-600"
   }), /*#__PURE__*/React.createElement("span", {
     className: "w-10 text-xs font-bold text-right text-emerald-700"
-  }, organicPct[k], "%"))))), adjustedReqs.notes.length > 0 && /*#__PURE__*/React.createElement("section", {
+  }, organicPct[k], "%"))))),
+  /*#__PURE__*/React.createElement("section", {
+    className: "bg-white rounded-xl shadow-sm border border-slate-200 p-5"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "font-semibold flex items-center gap-2 mb-3 pb-2 border-b"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "fas fa-vials text-indigo-500"
+  }), " Feed Additives", /*#__PURE__*/React.createElement("span", {
+    className: "text-xs font-normal text-slate-400 ml-auto"
+  }, "g/head/day")),
+  /*#__PURE__*/React.createElement("p", {
+    className: "text-[10px] text-slate-500 mb-3"
+  }, "Set daily dose (grams per head per day) for any additive you want in the premix. Dose + price contribute to the final cost. Monensin has regulatory limits in some regions \u2014 check your local rules."),
+  /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3 text-xs"
+  }, ['Yeast/DFM','Ionophore','Buffer','RP-AA','RP-Vitamin','Methane inhibitor','Phytobiotic','Mycotoxin binder','Tannin'].map(cat =>
+    /*#__PURE__*/React.createElement("div", { key: cat, className: "bg-slate-50 border border-slate-200 rounded-lg p-2" },
+      /*#__PURE__*/React.createElement("div", { className: "font-bold text-slate-600 text-[10px] uppercase mb-1" }, cat),
+      ADDITIVES.filter(a => a.category === cat).map(a =>
+        /*#__PURE__*/React.createElement("div", {
+          key: a.id,
+          className: "flex items-center gap-2 py-1 border-t border-slate-100 first:border-0",
+          title: a.note
+        },
+          /*#__PURE__*/React.createElement("div", { className: "flex-1 min-w-0" },
+            /*#__PURE__*/React.createElement("div", { className: "font-semibold text-slate-700 truncate" }, a.name),
+            /*#__PURE__*/React.createElement("div", { className: "text-[9px] text-slate-400" }, a.brand)
+          ),
+          /*#__PURE__*/React.createElement("input", {
+            type: "number",
+            step: "0.1",
+            min: "0",
+            value: additiveDose[a.id] || '',
+            placeholder: String(a.typicalDose),
+            onChange: e => setAdditiveDose(prev => ({...prev, [a.id]: +e.target.value || 0})),
+            className: "w-16 px-1 py-0.5 text-right bg-white border border-slate-300 rounded text-xs"
+          }),
+          /*#__PURE__*/React.createElement("span", { className: "w-6 text-[9px] text-slate-400 text-right" }, "g")
+        )
+      )
+    )
+  )),
+  adjustedReqs.notes.length > 0 && /*#__PURE__*/React.createElement("section", {
     className: "bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg shadow-sm"
   }, /*#__PURE__*/React.createElement("h4", {
     className: "font-bold text-blue-800 text-sm flex items-center gap-2 mb-2"
