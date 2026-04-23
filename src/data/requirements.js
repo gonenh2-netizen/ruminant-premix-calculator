@@ -18,6 +18,30 @@
 export const MINERAL_KEYS = ['Zn', 'Cu', 'Mn', 'Co', 'Se', 'I', 'Fe'];
 export const VITAMIN_KEYS = ['VitA', 'VitD', 'VitE', 'Biotin'];
 
+/**
+ * Maximum Tolerable Level (MTL) per species, expressed as total-diet
+ * concentration. Units mirror the requirements table:
+ *   - Minerals + Cr + Biotin : mg / kg DM
+ *   - Vitamins A, D3, E      : IU / kg DM
+ *
+ * Sources: NRC "Mineral Tolerance of Animals" 2005 + NASEM 2021 Dairy +
+ * NRC 2016 Beef + NRC 2007 Small Ruminants. Values are the practical
+ * upper limits; short-term spikes above these are not necessarily acute
+ * but chronic exposure risks toxicity. The calculator emits a hard
+ * warning whenever total delivered mg/kg DM (ration + premix-organic +
+ * premix-inorganic) exceeds MTL.
+ *
+ * Sheep Cu 15 mg/kg DM is the classic hypersensitive ceiling — the
+ * existing `cuCeiling` field mirrors it for back-compat.
+ */
+export const MTL = {
+  Dairy: { Zn: 500, Cu: 40, Mn: 1000, Co: 25, Se: 5, I: 50, Fe: 500, VitA: 22000, VitD: 2200, VitE: 2000, Biotin: 30, Cr: 10 },
+  Beef:  { Zn: 500, Cu: 40, Mn: 1000, Co: 25, Se: 5, I: 50, Fe: 500, VitA: 22000, VitD: 2200, VitE: 2000, Biotin: 30, Cr: 10 },
+  Goat:  { Zn: 500, Cu: 40, Mn: 1000, Co: 25, Se: 5, I: 50, Fe: 500, VitA: 22000, VitD: 2200, VitE: 2000, Biotin: 30, Cr: 10 },
+  // Sheep are hypersensitive to Cu (chronic toxicity at ~15 mg/kg DM total diet).
+  Sheep: { Zn: 500, Cu: 15, Mn: 1000, Co: 25, Se: 5, I: 50, Fe: 500, VitA: 22000, VitD: 2200, VitE: 2000, Biotin: 30, Cr: 10 },
+};
+
 export const NUTRIENT_LABELS = {
   Zn: 'Zinc',
   Cu: 'Copper',

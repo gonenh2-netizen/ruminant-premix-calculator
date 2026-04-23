@@ -67,6 +67,7 @@ export function RequirementsTable({ calc, dmi, adjustedReqs, nutrientOverrides, 
               <th className="px-3 py-2 text-right">% of Rqd</th>
               <th className="px-3 py-2 text-right">Per kg DM</th>
               <th className="px-3 py-2 text-left">NRC default</th>
+              <th className="px-3 py-2 text-left">Max (MTL)</th>
               <th className="px-3 py-2 text-right text-blue-600">Daily total</th>
               <th className="px-3 py-2 text-center w-14"></th>
             </tr>
@@ -81,13 +82,18 @@ export function RequirementsTable({ calc, dmi, adjustedReqs, nutrientOverrides, 
               const daily = effective * dmi;
               const unit = unitFor(k);
               const isOverridden = !!ov && (ov.enabled === false || (ov.multiplier != null && +ov.multiplier !== 100));
+              const mtl = (calc?.mtl || {})[k];
+              const toxic = enabled && mtl != null && effective > mtl;
+              // Soft-cap multiplier at the MTL equivalent so the input can't push past toxicity without intent.
+              const maxMultByMtl = mtl != null && defaultVal > 0 ? Math.floor((mtl / defaultVal) * 100) : 500;
               const multCls = !enabled ? 'bg-slate-100 text-slate-400'
+                : toxic ? 'bg-rose-100 text-rose-800 border-rose-500'
                 : multiplier > 100 ? 'bg-amber-50 text-amber-800'
                 : multiplier < 100 ? 'bg-sky-50 text-sky-800'
                 : 'bg-white';
 
               return (
-                <tr key={k} className={enabled ? '' : 'bg-slate-50 text-slate-400'}>
+                <tr key={k} className={!enabled ? 'bg-slate-50 text-slate-400' : toxic ? 'bg-rose-50' : ''}>
                   <td className="px-3 py-2 text-center">
                     <input
                       type="checkbox"
@@ -98,27 +104,39 @@ export function RequirementsTable({ calc, dmi, adjustedReqs, nutrientOverrides, 
                     />
                   </td>
                   <td className="px-3 py-2">
-                    <span className={`font-medium ${enabled ? 'text-slate-800' : 'line-through'}`}>{labelFor(k)}</span>
+                    <span className={`font-medium ${enabled ? (toxic ? 'text-rose-800' : 'text-slate-800') : 'line-through'}`}>{labelFor(k)}</span>
                     {!enabled && <span className="ml-2 text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold">EXCLUDED</span>}
-                    {isOverridden && enabled && <span className="ml-2 text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold">CUSTOM</span>}
+                    {isOverridden && enabled && !toxic && <span className="ml-2 text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold">CUSTOM</span>}
+                    {toxic && <span className="ml-2 text-[10px] bg-rose-600 text-white px-1.5 py-0.5 rounded font-bold animate-pulse">⚠ TOXIC</span>}
                   </td>
                   <td className="px-3 py-2 text-right">
                     <div className="inline-flex items-center gap-1">
                       <input
-                        type="number" step="5" min="0" max="500"
+                        type="number" step="5" min="0"
                         disabled={!enabled}
                         value={multiplier}
                         onChange={(e) => setOverride(k, { multiplier: +e.target.value, enabled: true })}
                         className={`w-20 border rounded px-1 py-0.5 text-xs text-right font-bold ${multCls}`}
+                        title={toxic ? `Exceeds ${labelFor(k)} MTL of ${mtl} ${unit}` : ''}
                       />
                       <span className="text-[10px] text-slate-500">%</span>
                     </div>
+                    {mtl != null && defaultVal > 0 && (
+                      <div className="text-[9px] text-slate-400 text-right mt-0.5">safe ≤ {maxMultByMtl}%</div>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-right text-xs text-slate-600">
                     {fmtNum(effective, 3)} <span className="text-[10px] text-slate-400">{unit}</span>
                   </td>
                   <td className="px-3 py-2 text-left text-[10px] text-slate-500">
                     {fmtNum(defaultVal)} {unit}
+                  </td>
+                  <td className="px-3 py-2 text-left text-[10px]">
+                    {mtl != null ? (
+                      <span className={toxic ? 'text-rose-700 font-bold' : 'text-slate-500'}>
+                        {fmtNum(mtl)} {unit}
+                      </span>
+                    ) : <span className="text-slate-300">—</span>}
                   </td>
                   <td className="px-3 py-2 text-right font-bold text-blue-600">
                     {fmtNum(daily, 2)}

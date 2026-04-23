@@ -21,7 +21,7 @@
  *   5. Vitamins, Cr auto-fill (KemTRACE), sheep Cu ceiling, carrier.
  */
 
-import { MINERAL_KEYS, VITAMIN_KEYS, NUTRIENT_LABELS } from '../data/requirements.js';
+import { MINERAL_KEYS, VITAMIN_KEYS, NUTRIENT_LABELS, MTL } from '../data/requirements.js';
 import { productsFor, unifiedCatalog } from '../data/products.js';
 import { ADDITIVES } from '../data/additives.js';
 
@@ -237,6 +237,44 @@ export function calcFormulation({
     }
   }
 
+  // 5b. Maximum Tolerable Level (MTL) check — species-specific ceilings
+  // for every mineral + vitamin. Guards against the user overriding a
+  // target above the toxic threshold, a blend over-supplying one element,
+  // or the ration + premix stack pushing total intake past the ceiling.
+  const mtl = MTL[species] || {};
+  const mtlExceedances = [];
+  if (dmi > 0) {
+    MINERAL_KEYS.forEach((m) => {
+      const limit = mtl[m];
+      if (!limit) return;
+      const totalMg = (delivered.ration[m] || 0) + (delivered.premix_org[m] || 0) + (delivered.premix_inorg[m] || 0);
+      const perKgDm = totalMg / dmi;
+      if (perKgDm > limit) {
+        const pct = ((perKgDm / limit) * 100).toFixed(0);
+        warnings.push(
+          `⚠ TOXIC ${NUTRIENT_LABELS[m] || m}: total delivery ${perKgDm.toFixed(2)} mg/kg DM exceeds ${species} Maximum Tolerable Level ` +
+          `(${limit} mg/kg DM, ${pct}%). Lower the mineral target, reduce the organic product dose, or switch to a blend that supplies less ${m}.`
+        );
+        mtlExceedances.push({ key: m, current: perKgDm, limit });
+      }
+    });
+    // Vitamin / Cr MTL: target-driven delivery, so check the adjusted target itself.
+    [...VITAMIN_KEYS, 'Cr'].forEach((k) => {
+      const limit = mtl[k];
+      if (!limit) return;
+      const target = adjustedReqs.base[k] || 0;
+      if (target > limit) {
+        const unit = (k === 'VitA' || k === 'VitD' || k === 'VitE') ? 'IU/kg DM' : 'mg/kg DM';
+        const pct = ((target / limit) * 100).toFixed(0);
+        warnings.push(
+          `⚠ TOXIC ${NUTRIENT_LABELS[k] || k}: target ${target.toFixed(0)} ${unit} exceeds ${species} Maximum Tolerable Level ` +
+          `(${limit} ${unit}, ${pct}%). Lower the % of Rqd in the Requirements table.`
+        );
+        mtlExceedances.push({ key: k, current: target, limit });
+      }
+    });
+  }
+
   // 6. Sheep Cu ceiling check — includes ration + premix Cu
   let dietCuPpm = null;
   if (species === 'Sheep' && cuCeiling) {
@@ -390,5 +428,7 @@ export function calcFormulation({
     deliveredMg,
     warnings,
     dietCuPpm,
+    mtl,
+    mtlExceedances,
   };
 }
