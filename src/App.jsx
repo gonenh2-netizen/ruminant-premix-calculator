@@ -118,8 +118,9 @@ export default function App() {
       customProducts,
       cuCeiling: REQS[species].cuCeiling || null,
       additiveDose,
+      marbling,
     }),
-    [adjustedReqs, dmi, dose, organicSelections, inorgSrc, prices, carrier, customProducts, species, additiveDose],
+    [adjustedReqs, dmi, dose, organicSelections, inorgSrc, prices, carrier, customProducts, species, additiveDose, marbling],
   );
 
   // When pbinder strategy is chosen, auto-populate the X-Zelit additive dose

@@ -114,6 +114,15 @@ export const ADDITIVES = [
   // ===== Metabolic modifier =====
   { id: 'betaine_betafin',       name: 'Betafin (Betaine anhydrous)',      brand: 'DuPont / IFF',   category: 'Metabolic modifier', typicalDose: 25, doseRange: '15–40 g/hd/d', price: 6.50, note: 'Methyl donor + osmolyte. Heat-stress support, Met-sparing, improved milk yield.', species: ['Dairy','Beef','Goat','Sheep'], stages: 'all' },
   { id: 'betaine_hcl',           name: 'Betaine HCl',                      brand: 'Generic',        category: 'Metabolic modifier', typicalDose: 30, doseRange: '20–50 g/hd/d', price: 5.00, note: 'Cheaper betaine form. Similar function to Betafin but less stable in moist feeds.', species: ['Dairy','Beef','Goat','Sheep'], stages: 'all' },
+
+  // ===== Carotenoid (β-Carotene — muscle antioxidant + fertility) =====
+  // β-Carotene is a provitamin-A. In fattening bulls the case is antioxidant
+  // protection of muscle under feedlot stress and a provitamin-A reserve that
+  // doesn't spike retinol. In breeding bulls / cows it supports corpus luteum
+  // and sperm quality. CAVEAT: it partially counteracts the low-Vit-A
+  // marbling protocol — calcFormulation flags a warning if Marbling is ON.
+  { id: 'betacarotene_rovimix',  name: 'Rovimix β-Carotene 10%',            brand: 'DSM',     category: 'Carotenoid', typicalDose: 4,   doseRange: '2–6 g/hd/d (200–600 mg β-carotene)', price: 65.00, note: '10% β-carotene beadlets. For bull fattening: antioxidant protection of muscle under feedlot oxidative stress; provitamin-A reserve that releases slowly (does not spike retinol). Also fertility/sperm-quality support in breeding bulls and reproduction in dairy cows. Typical fattening dose 300–500 mg β-carotene/hd/d = 3–5 g product.', species: ['Dairy','Beef'], stages: 'all', conflictsWith: ['marbling'] },
+  { id: 'betacarotene_lucarotin',name: 'Lucarotin 10% (β-Carotene)',        brand: 'BASF',    category: 'Carotenoid', typicalDose: 4,   doseRange: '2–6 g/hd/d (200–600 mg β-carotene)', price: 62.00, note: '10% β-carotene spray-dried beadlets. Direct equivalent to Rovimix. Same role: antioxidant muscle support for fattening bulls, fertility support in breeding stock.', species: ['Dairy','Beef'], stages: 'all', conflictsWith: ['marbling'] },
 ];
 
 // Display order for the UI — groups categories logically
@@ -123,6 +132,7 @@ export const ADDITIVE_CATEGORIES = [
   'Buffer',
   'RP-AA',
   'RP-Vitamin',
+  'Carotenoid',
   'DCAD Anionic Salt',
   'P-binder (Dry Cow)',
   'Glucogenic Energy',

@@ -41,6 +41,7 @@ export function calcFormulation({
   customProducts = [],
   cuCeiling = null,
   additiveDose = {},
+  marbling = false,
 }) {
   const reqs = adjustedReqs.base;
   const ingredients = [];
@@ -272,6 +273,13 @@ export function calcFormulation({
     }
     if (a.regulatoryNote) {
       warnings.push(`${a.name}: ${a.regulatoryNote}`);
+    }
+    // Additive ↔ strategy conflicts (e.g. β-carotene vs Marbling's low-Vit-A protocol)
+    if (Array.isArray(a.conflictsWith) && a.conflictsWith.includes('marbling') && marbling) {
+      warnings.push(
+        `${a.name} is a provitamin-A source and partially counteracts the Marbling (low Vit A) protocol. ` +
+        `Either turn off Marbling for this animal or lower the β-carotene dose.`
+      );
     }
 
     const pricePerKg = prices[id] ?? a.price;
