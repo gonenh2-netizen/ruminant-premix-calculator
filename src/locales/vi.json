@@ -27,7 +27,22 @@
     "errInvalidEmail": "Email không hợp lệ.",
     "errPasswordShort": "Mật khẩu phải ít nhất 6 ký tự.",
     "errTooManyRequests": "Quá nhiều lần thử. Hãy thử lại sau vài phút.",
-    "errNetwork": "Lỗi mạng. Vui lòng kiểm tra kết nối."
+    "errNetwork": "Lỗi mạng. Vui lòng kiểm tra kết nối.",
+    "errDisclaimerRequired": "Bạn phải đọc và chấp nhận Điều khoản Sử dụng để tạo tài khoản.",
+    "disclaimer": {
+      "title": "Điều khoản Sử dụng và Tuyên bố Miễn trừ Trách nhiệm",
+      "version": "Phiên bản {{version}} · có hiệu lực từ {{date}}",
+      "intro": "Máy Tính Premix Vitamin & Khoáng cho Gia Súc Nhai Lại được cung cấp như một công cụ thông tin và giáo dục. Bảng nhu cầu, mức dung nạp tối đa, liều sản phẩm và cảnh báo trong ứng dụng này dựa trên các tài liệu NRC / NASEM đã công bố và công bố nhãn của các nhà sản xuất được liệt kê, và có thể chứa sai sót, thiếu sót hoặc thông tin lỗi thời.",
+      "agreement": "Khi tạo tài khoản và sử dụng hệ thống này, bạn đồng ý rằng:",
+      "p1": "Bạn là bên duy nhất chịu trách nhiệm cho mọi công thức premix mà bạn thiết kế, sản xuất hoặc cho ăn bằng kết quả của máy tính này.",
+      "p2": "Bất kỳ hậu quả nào — bao gồm thiếu hụt dinh dưỡng, ngộ độc, tử vong, giảm năng suất, vi phạm quy định, thiệt hại tài chính hoặc hư hỏng thức ăn, thiết bị, tài sản — đều là trách nhiệm duy nhất của bạn.",
+      "p3": "Máy tính và các tác giả không bảo đảm tính phù hợp cho bất kỳ mục đích cụ thể nào, tính đầy đủ hoặc độ chính xác. Các tính toán, cảnh báo, giới hạn an toàn và mức dung nạp chỉ là tham khảo và không thay thế tư vấn chuyên môn của thú y, dinh dưỡng hoặc cơ quan quản lý.",
+      "p4": "Bạn sẽ xác minh độc lập mọi công thức với chuyên gia dinh dưỡng động vật có trình độ và/hoặc bác sĩ thú y trước khi sản xuất hoặc cho ăn, và tuân thủ tất cả quy định địa phương về an toàn thức ăn, phúc lợi động vật và ghi nhãn.",
+      "p5": "Tên sản phẩm, thương hiệu, liều và ghi chú chỉ được đưa vào như tham khảo tiện lợi và không phải là sự xác nhận hay bảo đảm về tính khả dụng, độ tinh khiết hoặc độ chính xác của nhãn cho khu vực của bạn.",
+      "p6": "Các tác giả, người đóng góp và đơn vị lưu trữ của máy tính này được miễn trừ mọi trách nhiệm về các thiệt hại trực tiếp, gián tiếp, ngẫu nhiên, hệ quả hoặc trừng phạt phát sinh từ việc sử dụng ứng dụng hoặc bất kỳ công thức nào được tạo ra từ nó.",
+      "footer": "Nếu bạn không đồng ý với các điều khoản này, vui lòng không tạo tài khoản.",
+      "accept": "Tôi đã đọc và chấp nhận Điều khoản Sử dụng và Tuyên bố Miễn trừ Trách nhiệm ở trên."
+    }
   },
   "header": {
     "exportCSV": "CSV",

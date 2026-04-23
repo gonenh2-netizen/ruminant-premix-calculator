@@ -26,11 +26,32 @@ export function useAuth() {
     });
   }, []);
 
-  const signUp = async (email, password, displayName) => {
+  const signUp = async (email, password, displayName, disclaimer = null) => {
     if (!CLOUD_ENABLED) throw new Error('Cloud is not configured');
     const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
     if (displayName) {
       try { await updateProfile(cred.user, { displayName: displayName.trim() }); } catch {}
+    }
+    // Persist the disclaimer acceptance to Firestore for audit trail.
+    if (disclaimer) {
+      try {
+        const [{ doc, setDoc }, { db }] = await Promise.all([
+          import('firebase/firestore'),
+          import('../firebase.js'),
+        ]);
+        await setDoc(doc(db, 'users', cred.user.uid), {
+          email: cred.user.email,
+          displayName: (displayName || '').trim() || null,
+          createdAt: new Date().toISOString(),
+          disclaimerVersion: disclaimer.version,
+          disclaimerAcceptedAt: disclaimer.acceptedAt,
+          disclaimerLang: disclaimer.lang,
+          disclaimerEmail: cred.user.email,
+        }, { merge: true });
+      } catch (err) {
+        // Don't block signup on audit-record failure — just log.
+        console.warn('Failed to record disclaimer acceptance:', err);
+      }
     }
     return cred.user;
   };

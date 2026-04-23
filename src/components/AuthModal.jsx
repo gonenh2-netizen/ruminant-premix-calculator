@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { DISCLAIMER_VERSION, DISCLAIMER_EFFECTIVE_DATE } from '../disclaimer.js';
 
 /**
  * Login / Signup / Reset-password modal.
@@ -7,15 +9,23 @@ import { useState } from 'react';
  * The user cannot reach the calculator until they authenticate.
  *
  * UX modes: 'login' (default) · 'signup' · 'reset'.
+ *
+ * Signup flow includes a required Terms-of-Use / Liability disclaimer
+ * checkbox. The acceptance (version + timestamp + language) is recorded
+ * to Firestore by the signUp function in useAuth.
  */
 export function AuthModal({ signUp, signIn, resetPassword, t = (k) => k }) {
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const { i18n } = useTranslation();
+  const lang = i18n?.resolvedLanguage || i18n?.language || 'en';
 
   const submit = async (e) => {
     e.preventDefault();
@@ -23,7 +33,12 @@ export function AuthModal({ signUp, signIn, resetPassword, t = (k) => k }) {
     try {
       if (mode === 'signup') {
         if (password.length < 6) throw new Error(t('auth.errPasswordShort'));
-        await signUp(email, password, displayName);
+        if (!accepted) throw new DisclaimerRequiredError();
+        await signUp(email, password, displayName, {
+          version: DISCLAIMER_VERSION,
+          lang,
+          acceptedAt: new Date().toISOString(),
+        });
       } else if (mode === 'login') {
         await signIn(email, password);
       } else if (mode === 'reset') {
@@ -98,11 +113,43 @@ export function AuthModal({ signUp, signIn, resetPassword, t = (k) => k }) {
                 />
               </div>
             )}
+            {mode === 'signup' && (
+              <div className="space-y-2">
+                <div className="border border-slate-300 rounded-lg bg-slate-50 p-3 max-h-56 overflow-y-auto text-[11px] leading-relaxed text-slate-700">
+                  <div className="font-bold text-slate-800 mb-1">{t('auth.disclaimer.title')}</div>
+                  <div className="text-[9px] text-slate-400 uppercase tracking-wide mb-2">
+                    {t('auth.disclaimer.version', { version: DISCLAIMER_VERSION, date: DISCLAIMER_EFFECTIVE_DATE })}
+                  </div>
+                  <p className="mb-2">{t('auth.disclaimer.intro')}</p>
+                  <p className="font-semibold mb-1">{t('auth.disclaimer.agreement')}</p>
+                  <ol className="list-decimal list-inside space-y-1 mb-2">
+                    <li>{t('auth.disclaimer.p1')}</li>
+                    <li>{t('auth.disclaimer.p2')}</li>
+                    <li>{t('auth.disclaimer.p3')}</li>
+                    <li>{t('auth.disclaimer.p4')}</li>
+                    <li>{t('auth.disclaimer.p5')}</li>
+                    <li>{t('auth.disclaimer.p6')}</li>
+                  </ol>
+                  <p className="italic text-slate-600">{t('auth.disclaimer.footer')}</p>
+                </div>
+                <label className="flex items-start gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox" checked={accepted}
+                    onChange={(e) => setAccepted(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-emerald-600"
+                  />
+                  <span className="text-xs text-slate-700 font-semibold">
+                    {t('auth.disclaimer.accept')}
+                  </span>
+                </label>
+              </div>
+            )}
             {error && <div className="text-xs text-rose-700 bg-rose-50 border border-rose-200 p-2 rounded">{error}</div>}
             {info && <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 p-2 rounded">{info}</div>}
             <button
-              type="submit" disabled={busy}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-lg font-semibold disabled:bg-emerald-400"
+              type="submit"
+              disabled={busy || (mode === 'signup' && !accepted)}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-lg font-semibold disabled:bg-emerald-300 disabled:cursor-not-allowed"
             >
               {busy ? t('auth.pleaseWait') : (mode === 'login' ? t('auth.login') : mode === 'signup' ? t('auth.createAccount') : t('auth.sendResetEmail'))}
             </button>
@@ -136,8 +183,16 @@ export function AuthModal({ signUp, signIn, resetPassword, t = (k) => k }) {
   );
 }
 
+class DisclaimerRequiredError extends Error {
+  constructor() {
+    super('Disclaimer not accepted');
+    this.code = 'app/disclaimer-required';
+  }
+}
+
 function friendlyError(err, t) {
   const code = err?.code || '';
+  if (code === 'app/disclaimer-required') return t('auth.errDisclaimerRequired');
   if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) return t('auth.errInvalidCredential');
   if (code.includes('email-already-in-use')) return t('auth.errEmailInUse');
   if (code.includes('invalid-email')) return t('auth.errInvalidEmail');

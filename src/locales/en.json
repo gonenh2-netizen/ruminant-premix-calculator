@@ -27,7 +27,22 @@
     "errInvalidEmail": "That email address is not valid.",
     "errPasswordShort": "Password must be at least 6 characters.",
     "errTooManyRequests": "Too many attempts. Try again in a few minutes.",
-    "errNetwork": "Network error. Check your connection."
+    "errNetwork": "Network error. Check your connection.",
+    "errDisclaimerRequired": "You must read and accept the Terms of Use to create an account.",
+    "disclaimer": {
+      "title": "Terms of Use and Liability Disclaimer",
+      "version": "Version {{version}} · effective {{date}}",
+      "intro": "The Ruminant Vitamin & Mineral Premix Calculator is provided as an informational and educational tool. Requirement tables, maximum tolerable levels, product doses and warnings in this app are based on published NRC / NASEM references and label claims from listed manufacturers, and may contain errors, omissions or outdated values.",
+      "agreement": "By creating an account and using this system, you agree that:",
+      "p1": "You are the sole responsible party for every premix formulation you design, produce, or feed using output from this calculator.",
+      "p2": "Any outcome — including animal deficiency, toxicity, poisoning, death, reduced performance, regulatory non-compliance, financial loss, or damage to feed, equipment, or property — is your sole responsibility.",
+      "p3": "The calculator and its authors make no warranty of fitness for any particular purpose, completeness, or accuracy. Calculations, warnings, safety ceilings and tolerable levels are references only and do not substitute for professional veterinary, nutritional, or regulatory advice.",
+      "p4": "You will independently verify every formulation with a qualified animal nutritionist and/or veterinarian before producing or feeding it, and will comply with all applicable local feed-safety, animal-welfare and labelling regulations.",
+      "p5": "Product names, brand names, doses and notes are included as a convenience reference only and do not constitute endorsement or a guarantee of availability, purity, or label accuracy for your region.",
+      "p6": "The authors, contributors and hosts of this calculator are released from any liability for direct, indirect, incidental, consequential or punitive damages arising from the use of this application or any formulation produced with it.",
+      "footer": "If you do not agree to these terms, do not create an account.",
+      "accept": "I have read and accept the Terms of Use and Liability Disclaimer above."
+    }
   },
   "header": {
     "exportCSV": "CSV",
