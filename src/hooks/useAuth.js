@@ -26,32 +26,37 @@ export function useAuth() {
     });
   }, []);
 
-  const signUp = async (email, password, displayName, disclaimer = null) => {
+  const signUp = async (email, password, displayName, disclaimer = null, contact = {}) => {
     if (!CLOUD_ENABLED) throw new Error('Cloud is not configured');
     const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
     if (displayName) {
       try { await updateProfile(cred.user, { displayName: displayName.trim() }); } catch {}
     }
-    // Persist the disclaimer acceptance to Firestore for audit trail.
-    if (disclaimer) {
-      try {
-        const [{ doc, setDoc }, { db }] = await Promise.all([
-          import('firebase/firestore'),
-          import('../firebase.js'),
-        ]);
-        await setDoc(doc(db, 'users', cred.user.uid), {
-          email: cred.user.email,
-          displayName: (displayName || '').trim() || null,
-          createdAt: new Date().toISOString(),
-          disclaimerVersion: disclaimer.version,
-          disclaimerAcceptedAt: disclaimer.acceptedAt,
-          disclaimerLang: disclaimer.lang,
-          disclaimerEmail: cred.user.email,
-        }, { merge: true });
-      } catch (err) {
-        // Don't block signup on audit-record failure — just log.
-        console.warn('Failed to record disclaimer acceptance:', err);
+    // Persist the user profile (contact details + disclaimer acceptance)
+    // to Firestore. Visible to admin in Firebase Console → Firestore → users.
+    try {
+      const [{ doc, setDoc }, { db }] = await Promise.all([
+        import('firebase/firestore'),
+        import('../firebase.js'),
+      ]);
+      const profile = {
+        email: cred.user.email,
+        displayName: (displayName || '').trim() || null,
+        company: (contact.company || '').trim() || null,
+        phone:   (contact.phone   || '').trim() || null,
+        country: (contact.country || '').trim() || null,
+        createdAt: new Date().toISOString(),
+      };
+      if (disclaimer) {
+        profile.disclaimerVersion    = disclaimer.version;
+        profile.disclaimerAcceptedAt = disclaimer.acceptedAt;
+        profile.disclaimerLang       = disclaimer.lang;
+        profile.disclaimerEmail      = cred.user.email;
       }
+      await setDoc(doc(db, 'users', cred.user.uid), profile, { merge: true });
+    } catch (err) {
+      // Don't block signup on profile-write failure — just log.
+      console.warn('Failed to record user profile:', err);
     }
     return cred.user;
   };

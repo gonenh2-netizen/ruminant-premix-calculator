@@ -19,6 +19,9 @@ export function AuthModal({ signUp, signIn, resetPassword, t = (k) => k }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [company, setCompany] = useState('');
+  const [phone, setPhone] = useState('');
+  const [country, setCountry] = useState('');
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -33,11 +36,17 @@ export function AuthModal({ signUp, signIn, resetPassword, t = (k) => k }) {
     try {
       if (mode === 'signup') {
         if (password.length < 6) throw new Error(t('auth.errPasswordShort'));
+        if (!displayName.trim()) throw new MissingFieldError(t('auth.fullName'));
+        if (!country.trim())     throw new MissingFieldError(t('auth.country'));
         if (!accepted) throw new DisclaimerRequiredError();
         await signUp(email, password, displayName, {
           version: DISCLAIMER_VERSION,
           lang,
           acceptedAt: new Date().toISOString(),
+        }, {
+          company: company.trim(),
+          phone: phone.trim(),
+          country: country.trim(),
         });
       } else if (mode === 'login') {
         await signIn(email, password);
@@ -54,7 +63,7 @@ export function AuthModal({ signUp, signIn, resetPassword, t = (k) => k }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden">
+      <div className={`bg-white rounded-xl shadow-xl ${mode === 'signup' ? 'max-w-lg' : 'max-w-md'} w-full overflow-hidden max-h-[95vh] flex flex-col`}>
         <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white p-6">
           <h1 className="text-2xl font-bold">
             <i className="fas fa-flask-vial mr-2"></i>
@@ -62,7 +71,7 @@ export function AuthModal({ signUp, signIn, resetPassword, t = (k) => k }) {
           </h1>
           <p className="text-sm text-emerald-100 mt-1">{t('auth.tagline')}</p>
         </div>
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 overflow-y-auto">
           <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
             <button
               type="button"
@@ -82,15 +91,56 @@ export function AuthModal({ signUp, signIn, resetPassword, t = (k) => k }) {
 
           <form onSubmit={submit} className="space-y-3">
             {mode === 'signup' && (
-              <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t('auth.displayName')}</label>
-                <input
-                  type="text" value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder={t('auth.displayNamePlaceholder')}
-                  className="w-full border rounded-lg px-3 py-2 text-sm"
-                />
-              </div>
+              <>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
+                    {t('auth.fullName')} <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text" required value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder={t('auth.fullNamePlaceholder')}
+                    className="w-full border rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t('auth.company')}</label>
+                    <input
+                      type="text" value={company}
+                      onChange={(e) => setCompany(e.target.value)}
+                      placeholder={t('auth.companyPlaceholder')}
+                      className="w-full border rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t('auth.phone')}</label>
+                    <input
+                      type="tel" value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+84 …"
+                      autoComplete="tel"
+                      className="w-full border rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
+                    {t('auth.country')} <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text" required value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    placeholder={t('auth.countryPlaceholder')}
+                    list="country-suggestions"
+                    autoComplete="country-name"
+                    className="w-full border rounded-lg px-3 py-2 text-sm"
+                  />
+                  <datalist id="country-suggestions">
+                    {COUNTRIES.map((c) => <option key={c} value={c} />)}
+                  </datalist>
+                </div>
+              </>
             )}
             <div>
               <label className="block text-xs font-bold uppercase text-slate-500 mb-1">{t('auth.email')}</label>
@@ -189,10 +239,18 @@ class DisclaimerRequiredError extends Error {
     this.code = 'app/disclaimer-required';
   }
 }
+class MissingFieldError extends Error {
+  constructor(fieldLabel) {
+    super(`Missing required field: ${fieldLabel}`);
+    this.code = 'app/missing-field';
+    this.fieldLabel = fieldLabel;
+  }
+}
 
 function friendlyError(err, t) {
   const code = err?.code || '';
   if (code === 'app/disclaimer-required') return t('auth.errDisclaimerRequired');
+  if (code === 'app/missing-field') return t('auth.errMissingField', { field: err.fieldLabel });
   if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) return t('auth.errInvalidCredential');
   if (code.includes('email-already-in-use')) return t('auth.errEmailInUse');
   if (code.includes('invalid-email')) return t('auth.errInvalidEmail');
@@ -201,3 +259,19 @@ function friendlyError(err, t) {
   if (code.includes('network')) return t('auth.errNetwork');
   return err?.message || String(err);
 }
+
+// Country suggestion list — autocomplete only, the user can type anything.
+// Roughly ordered by where ruminant-nutrition users of this app cluster.
+const COUNTRIES = [
+  'Vietnam', 'Thailand', 'China', 'Indonesia', 'Malaysia', 'Philippines',
+  'Cambodia', 'Laos', 'Myanmar', 'Singapore',
+  'Israel', 'Azerbaijan', 'Kazakhstan', 'Uzbekistan', 'Turkey', 'Iran', 'Saudi Arabia', 'United Arab Emirates',
+  'India', 'Pakistan', 'Bangladesh', 'Sri Lanka', 'Nepal',
+  'United States', 'Canada', 'Mexico', 'Brazil', 'Argentina', 'Chile', 'Colombia', 'Peru',
+  'Australia', 'New Zealand',
+  'United Kingdom', 'Ireland', 'France', 'Germany', 'Netherlands', 'Spain', 'Italy', 'Poland', 'Romania', 'Ukraine',
+  'South Africa', 'Kenya', 'Ethiopia', 'Egypt', 'Morocco', 'Nigeria',
+  'Russia', 'Belarus',
+  'Japan', 'South Korea', 'Taiwan',
+  'Other',
+];
