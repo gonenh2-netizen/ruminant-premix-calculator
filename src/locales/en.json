@@ -202,7 +202,27 @@
     "cancel": "Cancel",
     "save": "Save",
     "delete": "Delete",
+    "close": "Close",
     "none": "— none —",
     "em": "—"
+  },
+  "help": {
+    "button": "Help",
+    "title": "Ruminant Premix Calculator — Help",
+    "footer": "Help is written in English for technical accuracy. Use the language selector in the header for UI translation.",
+    "sections": {
+      "gettingStarted": "Getting Started",
+      "principles": "Calculator Principles",
+      "dairy": "Dairy — NASEM 2021",
+      "beef": "Beef — NRC 2016",
+      "goat": "Goat — NRC 2007",
+      "sheep": "Sheep — NRC 2007 + Cu ceiling",
+      "sources": "Mineral Sources",
+      "additives": "Feed Additives",
+      "drycow": "Dry-Cow Strategies",
+      "shelfLife": "Shelf Life & Overage",
+      "safety": "Safety & MTL",
+      "faq": "FAQ"
+    }
   }
 }

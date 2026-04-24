@@ -202,7 +202,27 @@
     "cancel": "取消",
     "save": "保存",
     "delete": "删除",
+    "close": "关闭",
     "none": "— 无 —",
     "em": "—"
+  },
+  "help": {
+    "button": "帮助",
+    "title": "反刍动物预混料计算器 — 帮助",
+    "footer": "帮助内容以英文撰写以保证技术准确性。使用顶部的语言选择器翻译界面。",
+    "sections": {
+      "gettingStarted": "快速入门",
+      "principles": "计算器原理",
+      "dairy": "奶牛 — NASEM 2021",
+      "beef": "肉牛 — NRC 2016",
+      "goat": "山羊 — NRC 2007",
+      "sheep": "绵羊 — NRC 2007 + Cu 上限",
+      "sources": "矿物质来源",
+      "additives": "饲料添加剂",
+      "drycow": "干奶期策略",
+      "shelfLife": "货架期与超量",
+      "safety": "安全性与 MTL",
+      "faq": "常见问题"
+    }
   }
 }

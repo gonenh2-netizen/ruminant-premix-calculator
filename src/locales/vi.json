@@ -202,7 +202,27 @@
     "cancel": "Hủy",
     "save": "Lưu",
     "delete": "Xóa",
+    "close": "Đóng",
     "none": "— không —",
     "em": "—"
+  },
+  "help": {
+    "button": "Trợ giúp",
+    "title": "Máy Tính Premix Gia Súc Nhai Lại — Trợ giúp",
+    "footer": "Nội dung trợ giúp được viết bằng tiếng Anh để đảm bảo chính xác kỹ thuật. Sử dụng bộ chọn ngôn ngữ ở đầu trang để dịch giao diện.",
+    "sections": {
+      "gettingStarted": "Bắt đầu",
+      "principles": "Nguyên lý máy tính",
+      "dairy": "Bò sữa — NASEM 2021",
+      "beef": "Bò thịt — NRC 2016",
+      "goat": "Dê — NRC 2007",
+      "sheep": "Cừu — NRC 2007 + trần Cu",
+      "sources": "Nguồn khoáng chất",
+      "additives": "Phụ gia thức ăn",
+      "drycow": "Chiến lược bò cạn sữa",
+      "shelfLife": "Hạn sử dụng & dự trù",
+      "safety": "An toàn & MTL",
+      "faq": "Câu hỏi thường gặp"
+    }
   }
 }

@@ -21,6 +21,7 @@ import { RequirementsTable } from './components/RequirementsTable.jsx';
 import { AdditivesPanel } from './components/AdditivesPanel.jsx';
 import { DryCowStrategyPanel } from './components/DryCowStrategyPanel.jsx';
 import { CommercialOveragePanel } from './components/CommercialOveragePanel.jsx';
+import { HelpModal } from './components/HelpModal.jsx';
 import { CustomProductModal } from './components/CustomProductModal.jsx';
 import { CustomProductsList } from './components/CustomProductsList.jsx';
 import { BioavailGuide } from './components/BioavailGuide.jsx';
@@ -97,6 +98,7 @@ export default function App() {
   const [shelfLifeConfig, setShelfLifeConfig] = useState({ months: 6, storage: 'standard', vitAForm: 'coated' });
   const [overageOverrides, setOverageOverrides] = useState({});
   const [modalOpen, setModalOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const { t, i18n } = useTranslation();
   const auth = useAuth();
@@ -229,6 +231,7 @@ export default function App() {
       <Header t={t} i18n={i18n}
               auth={auth}
               currency={currency} setCurrency={setCurrency}
+              onHelp={() => setHelpOpen(true)}
               onExportCSV={() => exportFormulationCSV({ calc, species, stage, breed, dmi, dose, batchKg, currency })}
               onExportRationall={() => exportRationallCSV({ calc, species, stage, dose, currency, currencyRate: c.rate, customProducts })}
               onExportAMTS={() => exportAMTS_XML({ calc, species, stage, dose, customProducts })}
@@ -344,6 +347,7 @@ export default function App() {
       </footer>
 
       <CustomProductModal open={modalOpen} onClose={() => setModalOpen(false)} onSave={addCustom} />
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} t={t} />
     </div>
 
     <PrintableReport
@@ -357,7 +361,7 @@ export default function App() {
   );
 }
 
-function Header({ t, i18n, auth, currency, setCurrency, onExportCSV, onExportRationall, onExportAMTS, onPrint }) {
+function Header({ t, i18n, auth, currency, setCurrency, onHelp, onExportCSV, onExportRationall, onExportAMTS, onPrint }) {
   const changeLang = (code) => i18n.changeLanguage(code);
   const activeLang = SUPPORTED_LANGS.find((l) => l.code === (i18n.resolvedLanguage || i18n.language)) || SUPPORTED_LANGS[0];
   return (
@@ -394,6 +398,9 @@ function Header({ t, i18n, auth, currency, setCurrency, onExportCSV, onExportRat
         </button>
         <button onClick={onPrint} className="bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-xs font-semibold" title={t('header.printTooltip')}>
           <i className="fas fa-print mr-1"></i> {t('header.print')}
+        </button>
+        <button onClick={onHelp} className="bg-sky-600 hover:bg-sky-700 text-white px-3 py-2 rounded-lg text-xs font-semibold" title={t('help.title')}>
+          <i className="fas fa-circle-question mr-1"></i> {t('help.button')}
         </button>
         {auth?.cloudEnabled && auth.user && (
           <div className="flex items-center gap-2 border-l pl-2 ml-1">
