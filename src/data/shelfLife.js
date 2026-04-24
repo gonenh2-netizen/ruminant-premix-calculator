@@ -55,9 +55,13 @@ export const DECAY_MONTHLY_PCT = {
 
 // Minimum analytical-variability floor in %, applied even if chemical
 // decay is zero (assay drift, mixing CV, etc.).
+// Intentionally low — the user asked for a lean default overage so that
+// Weiss/NASEM 2021 targets aren't silently inflated. If a nutritionist
+// wants more padding for shelf life they can raise the per-nutrient % in
+// the Commercial Overage panel.
 export const ANALYTICAL_FLOOR_PCT = {
-  VitA:   5, VitD: 5, VitE: 5, Biotin: 5,
-  Zn: 3, Cu: 3, Mn: 3, Co: 3, Se: 5, I: 5, Fe: 3, Cr: 3,
+  VitA:   2, VitD: 2, VitE: 2, Biotin: 2,
+  Zn: 1, Cu: 1, Mn: 1, Co: 1, Se: 2, I: 2, Fe: 1, Cr: 1,
 };
 
 // Storage-environment multiplier on the monthly decay rate.

@@ -21,7 +21,7 @@ export function adjustReqs({
   REQS, species, stage, breed, milkYield, marbling, colorFocus, shelfLife: meatShelfLife,
   nutrientOverrides = {},
   dryCowStrategy = 'standard', dcadTarget = -100, maxCaGPerDay = 50, xzelitDose = 400,
-  shelfLifeConfig = { months: 6, storage: 'standard', vitAForm: 'standard' },
+  shelfLifeConfig = { months: 6, storage: 'standard', vitAForm: 'coated' },
   overageOverrides = {},
 }) {
   const base = { ...REQS[species].stages[stage] };
@@ -174,7 +174,7 @@ export function adjustReqs({
   // Commercial shelf-life overage: formulated = base × (1 + overage%/100).
   // Suggested % is computed from decay model + analytical floor; user can
   // override per-nutrient via overageOverrides.
-  const suggestedOverages = computeOverages(shelfLifeConfig || { months: 6, storage: 'standard', vitAForm: 'standard' });
+  const suggestedOverages = computeOverages(shelfLifeConfig || { months: 6, storage: 'standard', vitAForm: 'coated' });
   const overagesPct = {};
   const formulated = {};
   for (const k of Object.keys(base)) {

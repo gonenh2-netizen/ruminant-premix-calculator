@@ -94,7 +94,7 @@ export default function App() {
   const [dcadTarget, setDcadTarget] = useState(-100);
   const [maxCaGPerDay, setMaxCaGPerDay] = useState(50);
   const [xzelitDose, setXzelitDose] = useState(400);
-  const [shelfLifeConfig, setShelfLifeConfig] = useState({ months: 6, storage: 'standard', vitAForm: 'standard' });
+  const [shelfLifeConfig, setShelfLifeConfig] = useState({ months: 6, storage: 'standard', vitAForm: 'coated' });
   const [overageOverrides, setOverageOverrides] = useState({});
   const [modalOpen, setModalOpen] = useState(false);
 

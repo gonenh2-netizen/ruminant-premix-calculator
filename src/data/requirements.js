@@ -2,9 +2,15 @@
  * Per-kg-DMI nutrient requirements by species + stage.
  *
  * Sources:
- *  - Dairy: NASEM 2021 (via user's Dairy NotebookLM, 89 sources)
- *  - Goats & Sheep: NRC 2007 Small Ruminants (via user's Goat NotebookLM, 52 sources)
- *  - Beef: NRC 2016 Beef Cattle (via user's SEA Beef NotebookLM, 102 sources)
+ *  - Dairy: NASEM 2021 / Weiss & Erdman 2021 "NASEM 2021: Minerals and Vitamins"
+ *    (Ohio State / U. Maryland, NASEM Dairy 8 committee summary). Values shown
+ *    are per-kg-DMI targets for a 650 kg lactating cow, 700 kg dry cow, 24 kg
+ *    DMI lactating, 12 kg DMI dry cow. Cross-checked against the slide-deck
+ *    summary at G:\…\Weiss-2021-NRC-Vitamins-and-Minerals.pdf.
+ *    Note: Weiss calls most vitamin/mineral values "Adequate Intake (AI)" not
+ *    requirements — the committee judged the data too thin to set strict Rqt.
+ *  - Goats & Sheep: NRC 2007 Small Ruminants
+ *  - Beef: NRC 2016 Beef Cattle
  *
  * Units:
  *  - Minerals (Zn, Cu, Mn, Co, Se, I, Fe, Cr): mg per kg DM
@@ -30,6 +36,12 @@ export const VITAMIN_KEYS = ['VitA', 'VitD', 'VitE', 'Biotin'];
  * but chronic exposure risks toxicity. The calculator emits a hard
  * warning whenever total delivered mg/kg DM (ration + premix-organic +
  * premix-inorganic) exceeds MTL.
+ *
+ * Caveat from Weiss & Erdman 2021 ("Needed Research" slide): human data
+ * suggest a LOWER MTL for Vit A, and limited animal data suggest a LOWER
+ * MTL for Vit E. The 22,000 IU/kg DM (Vit A) and 2,000 IU/kg DM (Vit E)
+ * values here are conservative industry ceilings; chronic Vit A feeding
+ * anywhere above ~10,000 IU/kg DM merits caution.
  *
  * Sheep Cu 15 mg/kg DM is the classic hypersensitive ceiling — the
  * existing `cuCeiling` field mirrors it for back-compat.
@@ -59,14 +71,26 @@ export const NUTRIENT_LABELS = {
 
 export const REQS = {
   Dairy: {
+    // NASEM 2021 (Weiss & Erdman 2021) aligned.
+    //   Dry-cow Zn 28 mg/kg DMI (was 45-55 per NRC 2001; NASEM 2021 revised ~10% up
+    //     from 25 → 28 for maintenance-on-DMI basis; bigger drop vs. old NRC high).
+    //   Dry-cow Cu 17 mg/kg DMI (+40% vs NRC 2001 via higher maintenance + AC).
+    //   Dry-cow Mn 40 mg/kg DMI (2× NRC 2001; AC dropped 0.75 → 0.4).
+    //   Lactating Mn ~30 mg/kg DMI (2.3× NRC 2001).
+    //   Lactating Cu ~11 mg/kg DMI at 35 kg milk; high producer drops to ~9.
+    //   Lactating Vit D 40 IU/kg BW → ~1300 IU/kg DM for a 650 kg cow at 20 kg DMI
+    //     (bumped from 30 IU/kg BW heifer/dry baseline; NRC 2001 was 30 across).
+    //   Prefresh Vit E 3 IU/kg BW → ~175 IU/kg DM for 700 kg cow at 12 kg DMI.
+    //   I: NASEM AI ~0.5 mg/kg DMI (was ~0.4 in 2001; my prior 0.69 was high).
+    //   Se: 0.30 mg/kg DM held (FDA-capped).
     stages: {
-      'Calf (Preweaning)':       { Zn: 45, Cu: 10, Mn: 35, Co: 0.15, Se: 0.30, I: 0.42, Fe: 50, VitA: 9000, VitD: 660,  VitE: 50,  Biotin: 0 },
-      'Heifer (Growing)':         { Zn: 45, Cu: 10, Mn: 35, Co: 0.15, Se: 0.30, I: 0.42, Fe: 30, VitA: 2500, VitD: 300,  VitE: 30,  Biotin: 0 },
-      'Far-off Dry':              { Zn: 45, Cu: 18, Mn: 40, Co: 0.20, Se: 0.30, I: 0.55, Fe: 20, VitA: 4400, VitD: 1100, VitE: 100, Biotin: 0 },
-      'Close-up Dry':             { Zn: 55, Cu: 18, Mn: 45, Co: 0.20, Se: 0.30, I: 0.55, Fe: 20, VitA: 4400, VitD: 1100, VitE: 210, Biotin: 0 },
-      'Fresh / Early Lactation':  { Zn: 66, Cu: 11, Mn: 49, Co: 0.20, Se: 0.30, I: 0.69, Fe: 20, VitA: 4400, VitD: 1100, VitE: 30,  Biotin: 0.85 },
-      'Mid Lactation':            { Zn: 60, Cu: 10, Mn: 45, Co: 0.20, Se: 0.30, I: 0.55, Fe: 18, VitA: 4400, VitD: 1100, VitE: 30,  Biotin: 0.70 },
-      'Late Lactation':           { Zn: 55, Cu: 10, Mn: 40, Co: 0.20, Se: 0.30, I: 0.50, Fe: 18, VitA: 4400, VitD: 1100, VitE: 30,  Biotin: 0.60 },
+      'Calf (Preweaning)':       { Zn: 45, Cu: 10, Mn: 35, Co: 0.20, Se: 0.30, I: 0.42, Fe: 50, VitA: 9000, VitD: 660,  VitE: 50,  Biotin: 0 },
+      'Heifer (Growing)':         { Zn: 40, Cu: 10, Mn: 30, Co: 0.20, Se: 0.30, I: 0.50, Fe: 30, VitA: 2500, VitD: 300,  VitE: 30,  Biotin: 0 },
+      'Far-off Dry':              { Zn: 28, Cu: 17, Mn: 40, Co: 0.20, Se: 0.30, I: 0.50, Fe: 20, VitA: 5000, VitD: 1100, VitE: 100, Biotin: 0 },
+      'Close-up Dry':             { Zn: 28, Cu: 17, Mn: 40, Co: 0.20, Se: 0.30, I: 0.50, Fe: 20, VitA: 5000, VitD: 1100, VitE: 175, Biotin: 0 },
+      'Fresh / Early Lactation':  { Zn: 60, Cu: 11, Mn: 30, Co: 0.20, Se: 0.30, I: 0.55, Fe: 20, VitA: 4400, VitD: 1300, VitE: 30,  Biotin: 0.85 },
+      'Mid Lactation':            { Zn: 55, Cu: 10, Mn: 30, Co: 0.20, Se: 0.30, I: 0.50, Fe: 18, VitA: 4400, VitD: 1300, VitE: 30,  Biotin: 0.70 },
+      'Late Lactation':           { Zn: 50, Cu: 10, Mn: 28, Co: 0.20, Se: 0.30, I: 0.50, Fe: 18, VitA: 4400, VitD: 1300, VitE: 30,  Biotin: 0.60 },
     },
     breeds: ['Holstein', 'Jersey', 'Brown Swiss', 'Guernsey', 'Crossbred', 'Other'],
     hasMilkYield: true,
