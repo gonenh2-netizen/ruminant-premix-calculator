@@ -30,17 +30,24 @@ export function AdditivesPanel({
     return out;
   }, []);
 
-  // Show all categories by default; let user collapse any
+  // Show all categories open by default — users were missing the additive
+  // rows because the collapsed-header UX wasn't obvious. A "Collapse all"
+  // link lets them tidy up once they've found what they need.
   const [openCats, setOpenCats] = useState(() => {
     const initial = {};
-    ADDITIVE_CATEGORIES.forEach((c) => { initial[c] = false; });
-    // Auto-open categories with anything already dosed
-    Object.keys(additiveDose || {}).forEach((id) => {
-      const a = ADDITIVES.find((x) => x.id === id);
-      if (a && additiveDose[id] > 0) initial[a.category] = true;
-    });
+    ADDITIVE_CATEGORIES.forEach((c) => { initial[c] = true; });
     return initial;
   });
+  const collapseAll = () => {
+    const next = {};
+    ADDITIVE_CATEGORIES.forEach((c) => { next[c] = false; });
+    setOpenCats(next);
+  };
+  const expandAll = () => {
+    const next = {};
+    ADDITIVE_CATEGORIES.forEach((c) => { next[c] = true; });
+    setOpenCats(next);
+  };
 
   const toggleCat = (cat) => setOpenCats((o) => ({ ...o, [cat]: !o[cat] }));
 
@@ -59,8 +66,13 @@ export function AdditivesPanel({
     <section className="bg-white rounded-xl p-5 shadow-sm border">
       <h2 className="font-semibold border-b pb-2 mb-3 flex items-center justify-between">
         <span><i className="fas fa-vial text-purple-600 mr-2"></i>Feed Additives</span>
-        <span className="text-xs font-normal text-slate-400">
-          {activeCount > 0 ? `${activeCount} additive${activeCount > 1 ? 's' : ''} in premix` : 'enter g/hd/d to include'}
+        <span className="flex items-center gap-2">
+          <span className="text-xs font-normal text-slate-400">
+            {activeCount > 0 ? `${activeCount} additive${activeCount > 1 ? 's' : ''} in premix` : 'enter g/hd/d to include'}
+          </span>
+          <button type="button" onClick={expandAll} className="text-[10px] text-emerald-700 hover:underline font-bold">Expand all</button>
+          <span className="text-[10px] text-slate-300">|</span>
+          <button type="button" onClick={collapseAll} className="text-[10px] text-slate-500 hover:underline font-bold">Collapse all</button>
         </span>
       </h2>
       <p className="text-xs text-slate-500 mb-3">

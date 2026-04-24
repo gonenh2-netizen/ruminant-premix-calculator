@@ -20,6 +20,7 @@ import { PrintableReport } from './components/PrintableReport.jsx';
 import { RequirementsTable } from './components/RequirementsTable.jsx';
 import { AdditivesPanel } from './components/AdditivesPanel.jsx';
 import { DryCowStrategyPanel } from './components/DryCowStrategyPanel.jsx';
+import { CommercialOveragePanel } from './components/CommercialOveragePanel.jsx';
 import { CustomProductModal } from './components/CustomProductModal.jsx';
 import { CustomProductsList } from './components/CustomProductsList.jsx';
 import { BioavailGuide } from './components/BioavailGuide.jsx';
@@ -93,6 +94,8 @@ export default function App() {
   const [dcadTarget, setDcadTarget] = useState(-100);
   const [maxCaGPerDay, setMaxCaGPerDay] = useState(50);
   const [xzelitDose, setXzelitDose] = useState(400);
+  const [shelfLifeConfig, setShelfLifeConfig] = useState({ months: 6, storage: 'standard', vitAForm: 'standard' });
+  const [overageOverrides, setOverageOverrides] = useState({});
   const [modalOpen, setModalOpen] = useState(false);
 
   const { t, i18n } = useTranslation();
@@ -112,9 +115,11 @@ export default function App() {
       REQS, species, stage, breed, milkYield, marbling, colorFocus, shelfLife,
       nutrientOverrides,
       dryCowStrategy, dcadTarget, maxCaGPerDay, xzelitDose,
+      shelfLifeConfig, overageOverrides,
     }),
     [species, stage, breed, milkYield, marbling, colorFocus, shelfLife, nutrientOverrides,
-     dryCowStrategy, dcadTarget, maxCaGPerDay, xzelitDose],
+     dryCowStrategy, dcadTarget, maxCaGPerDay, xzelitDose,
+     shelfLifeConfig, overageOverrides],
   );
 
   const calc = useMemo(
@@ -157,6 +162,7 @@ export default function App() {
     marbling, colorFocus, shelfLife,
     organicSelections, inorgSrc, nutrientOverrides,
     additiveDose, dryCowStrategy, dcadTarget, maxCaGPerDay, xzelitDose,
+    shelfLifeConfig, overageOverrides,
     priceOverrides: prices,
   };
 
@@ -189,6 +195,8 @@ export default function App() {
     setDcadTarget(s.dcadTarget ?? -100);
     setMaxCaGPerDay(s.maxCaGPerDay ?? 50);
     setXzelitDose(s.xzelitDose ?? 400);
+    setShelfLifeConfig(s.shelfLifeConfig || { months: 6, storage: 'standard', vitAForm: 'standard' });
+    setOverageOverrides(s.overageOverrides || {});
     if (s.priceOverrides) setPrices((prev) => ({ ...prev, ...s.priceOverrides }));
   };
 
@@ -286,6 +294,12 @@ export default function App() {
             calc={calc} dmi={dmi} adjustedReqs={adjustedReqs}
             nutrientOverrides={nutrientOverrides}
             setNutrientOverrides={setNutrientOverrides}
+          />
+
+          <CommercialOveragePanel
+            shelfLifeConfig={shelfLifeConfig} setShelfLifeConfig={setShelfLifeConfig}
+            overageOverrides={overageOverrides} setOverageOverrides={setOverageOverrides}
+            adjustedReqs={adjustedReqs}
           />
         </div>
       </div>

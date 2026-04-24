@@ -43,15 +43,23 @@ export function calcFormulation({
   additiveDose = {},
   marbling = false,
 }) {
-  const reqs = adjustedReqs.base;
+  // Biological target (what the animal needs) vs formulated target (what
+  // the premix is built to deliver at production, including shelf-life
+  // overage). Deficit math uses `formulated`; MTL is still checked against
+  // `formulated` since an initial over-dose could push above toxicity.
+  const bio = adjustedReqs.base;
+  const reqs = adjustedReqs.formulated || adjustedReqs.base;
   const ingredients = [];
   const warnings = [];
   let totalActiveG = 0;
   let totalCostPerDose = 0;
 
-  // Per-mineral daily requirement (mg)
+  // Per-mineral daily TARGET (formulated mg delivered at production)
   const requiredMg = {};
   [...MINERAL_KEYS, 'Cr'].forEach((m) => { requiredMg[m] = (reqs[m] || 0) * dmi; });
+  // Biological mg for display / summary
+  const biologicalMg = {};
+  [...MINERAL_KEYS, 'Cr'].forEach((m) => { biologicalMg[m] = (bio[m] || 0) * dmi; });
 
   // Per-mineral remaining deficit (mg) — gets drained as we place sources
   const deficitMg = { ...requiredMg };
@@ -258,21 +266,57 @@ export function calcFormulation({
         mtlExceedances.push({ key: m, current: perKgDm, limit });
       }
     });
-    // Vitamin / Cr MTL: target-driven delivery, so check the adjusted target itself.
+    // Vitamin / Cr MTL: target-driven delivery, so check the FORMULATED
+    // (post-overage) target — that's what's actually in the finished premix
+    // and gets fed on day 1. Overage can push a safe biological target
+    // above MTL, so we must check the delivered number.
     [...VITAMIN_KEYS, 'Cr'].forEach((k) => {
       const limit = mtl[k];
       if (!limit) return;
-      const target = adjustedReqs.base[k] || 0;
+      const target = reqs[k] || 0; // formulated
       if (target > limit) {
         const unit = (k === 'VitA' || k === 'VitD' || k === 'VitE') ? 'IU/kg DM' : 'mg/kg DM';
         const pct = ((target / limit) * 100).toFixed(0);
+        const overagePct = (adjustedReqs.overagesPct || {})[k] || 0;
+        const overageHint = overagePct > 20
+          ? ` This formulated target includes a ${overagePct.toFixed(0)}% shelf-life overage — consider shortening shelf life or switching to a more stable vitamin form to reduce it.`
+          : '';
         warnings.push(
-          `⚠ TOXIC ${NUTRIENT_LABELS[k] || k}: target ${target.toFixed(0)} ${unit} exceeds ${species} Maximum Tolerable Level ` +
-          `(${limit} ${unit}, ${pct}%). Lower the % of Rqd in the Requirements table.`
+          `⚠ TOXIC ${NUTRIENT_LABELS[k] || k}: formulated target ${target.toFixed(0)} ${unit} exceeds ${species} Maximum Tolerable Level ` +
+          `(${limit} ${unit}, ${pct}%). Lower the % of Rqd in the Requirements table.${overageHint}`
         );
         mtlExceedances.push({ key: k, current: target, limit });
       }
     });
+  }
+
+  // 5c. Mineral ↔ vitamin incompatibility suggestions. These aren't
+  // "warnings" of toxicity so much as formulation hygiene: tell the user
+  // that certain co-formulated products will accelerate vitamin
+  // degradation in the finished premix, and nudge them toward more
+  // stable chemistries or separate-bag production.
+  const hasInorgSulfate = (inorgSrc && (
+    (inorgSrc.Zn && inorgSrc.Zn.includes('sulfate')) ||
+    (inorgSrc.Cu && inorgSrc.Cu.includes('sulfate')) ||
+    (inorgSrc.Fe && inorgSrc.Fe.includes('sulfate')) ||
+    (inorgSrc.Mn && inorgSrc.Mn.includes('sulfate'))
+  ));
+  const hasCholineAdditive = !!additiveDose?.rp_choline_reashure;
+  const vitAInPremix = (bio.VitA || 0) > 0;
+  if (vitAInPremix && hasInorgSulfate && hasCholineAdditive) {
+    warnings.push(
+      `Vit A + trace-mineral sulfates + choline chloride co-formulated in the same premix accelerates Vit A oxidation ~3×. ` +
+      `Recommend: switch Vit A to coated CWS beadlets, move choline to a separate feeding, or use organic Cu/Zn/Mn/Fe instead of sulfates.`
+    );
+  } else if (vitAInPremix && hasInorgSulfate) {
+    warnings.push(
+      `Vit A co-formulated with trace-mineral sulfates degrades faster in storage. Consider coated Vit A beadlets or organic (chelated) Cu/Zn/Mn/Fe to extend shelf life.`
+    );
+  }
+  if (inorgSrc?.I === 'ki') {
+    warnings.push(
+      `Potassium Iodide (KI) is volatile — a premix loses ~2% I per month vs <0.5%/month for EDDI or Calcium Iodate. Switch if shelf life >3 months.`
+    );
   }
 
   // 6. Sheep Cu ceiling check — includes ration + premix Cu
@@ -396,16 +440,29 @@ export function calcFormulation({
     });
   }
 
-  // 9. Summary of requirements (unchanged contract)
+  // 9. Summary of requirements — now carries both biological target and
+  // formulated target (initial premix potency). `reqPerKgDm` stays the
+  // formulated value so existing consumers (exports, mineral delivery
+  // table) continue to see what the premix actually delivers.
   const summary = [];
   [...MINERAL_KEYS, ...VITAMIN_KEYS].forEach((k) => {
     const v = reqs[k];
     if (v === undefined || v === null) return;
     const unit = MINERAL_KEYS.includes(k) ? 'mg' : k === 'Biotin' ? 'mg' : 'IU';
-    summary.push({ key: k, label: NUTRIENT_LABELS[k] || k, unit, reqPerKgDm: v, dailyTotal: v * dmi });
+    summary.push({
+      key: k, label: NUTRIENT_LABELS[k] || k, unit,
+      reqPerKgDm: v, dailyTotal: v * dmi,
+      bioPerKgDm: bio[k] || 0, bioDaily: (bio[k] || 0) * dmi,
+      overagePct: (adjustedReqs.overagesPct || {})[k] || 0,
+    });
   });
   if ((reqs.Cr || 0) > 0) {
-    summary.push({ key: 'Cr', label: 'Chromium', unit: 'mg', reqPerKgDm: reqs.Cr, dailyTotal: reqs.Cr * dmi });
+    summary.push({
+      key: 'Cr', label: 'Chromium', unit: 'mg',
+      reqPerKgDm: reqs.Cr, dailyTotal: reqs.Cr * dmi,
+      bioPerKgDm: bio.Cr || 0, bioDaily: (bio.Cr || 0) * dmi,
+      overagePct: (adjustedReqs.overagesPct || {}).Cr || 0,
+    });
   }
 
   // deliveredMg kept for legacy compatibility (flat Cu total etc.)

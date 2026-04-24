@@ -1,22 +1,28 @@
 /**
  * Apply species/stage-specific adjustments to baseline NRC/NASEM requirements,
- * then apply per-nutrient user overrides (exclude or bump above/below baseline).
+ * then apply per-nutrient user overrides (exclude or bump above/below baseline),
+ * then layer the commercial shelf-life overage.
  *
- * Inputs:
- *   base = REQS[species].stages[stage] (object of nutrient → mg/IU per kg DM)
- *   nutrientOverrides: { [key]: { enabled: boolean, multiplier: number|null } }
- *     enabled=false   → nutrient excluded from the premix (set to 0)
- *     multiplier!=null → scale NRC/adjusted baseline by multiplier/100
- *                        (100 = baseline, 120 = +20%, 80 = -20%, 0 = excluded)
+ * Returns:
+ *   base          biological requirement per kg DM after adjustments + overrides
+ *   formulated    premix design target per kg DM (base × (1 + overage/100))
+ *   overagesPct   { [nutrient]: % } overage used to build `formulated`
+ *   defaults      pre-override values (for the UI "NRC default" hint)
+ *   notes         human-readable adjustment explanations
  *
- * Returns: { base: adjusted requirements, notes: array of human-readable change explanations,
- *            defaults: the pre-override values (so the UI can show the NRC default) }
+ * calcFormulation uses `formulated` for the deficit math so the premix
+ * delivers the biological dose even after shelf-life decay. The
+ * RequirementsTable renders both biological and formulated side-by-side.
  */
 
+import { computeOverages } from '../data/shelfLife.js';
+
 export function adjustReqs({
-  REQS, species, stage, breed, milkYield, marbling, colorFocus, shelfLife,
+  REQS, species, stage, breed, milkYield, marbling, colorFocus, shelfLife: meatShelfLife,
   nutrientOverrides = {},
   dryCowStrategy = 'standard', dcadTarget = -100, maxCaGPerDay = 50, xzelitDose = 400,
+  shelfLifeConfig = { months: 6, storage: 'standard', vitAForm: 'standard' },
+  overageOverrides = {},
 }) {
   const base = { ...REQS[species].stages[stage] };
   const notes = [];
@@ -99,14 +105,14 @@ export function adjustReqs({
       base.Se = Math.max(base.Se, 0.30);
       notes.push('Meat color ON: Vit E ≥150 IU/kg DM, Se ≥0.30 mg/kg DM (oxymyoglobin protection).');
     }
-    if (shelfLife) {
+    if (meatShelfLife) {
       base.VitE = Math.max(base.VitE, 200);
       base.Se = Math.max(base.Se, 0.30);
       base.Fe = Math.min(base.Fe, 40);
       // Sheep already has a 15 mg/kg DM Cu toxicity ceiling; capping to 10 is
       // stricter and safe. Other species just cap at 10.
       base.Cu = Math.min(base.Cu, 10);
-      notes.push('Shelf life ON: Vit E ≥200 IU/kg DM, Se 0.30. Fe/Cu capped to slow lipid oxidation.');
+      notes.push('Meat shelf life ON: Vit E ≥200 IU/kg DM, Se 0.30. Fe/Cu capped to slow lipid oxidation.');
     }
   }
 
@@ -165,5 +171,28 @@ export function adjustReqs({
   if (excluded.length) notes.push(`Excluded from premix: ${excluded.join(', ')}.`);
   if (overridden.length) notes.push(`User-overridden targets: ${overridden.join(', ')}.`);
 
-  return { base, notes, defaults };
+  // Commercial shelf-life overage: formulated = base × (1 + overage%/100).
+  // Suggested % is computed from decay model + analytical floor; user can
+  // override per-nutrient via overageOverrides.
+  const suggestedOverages = computeOverages(shelfLifeConfig || { months: 6, storage: 'standard', vitAForm: 'standard' });
+  const overagesPct = {};
+  const formulated = {};
+  for (const k of Object.keys(base)) {
+    const suggested = suggestedOverages[k];
+    const user = overageOverrides[k];
+    const pct = (user != null && isFinite(+user)) ? Math.max(0, +user) : (suggested || 0);
+    overagesPct[k] = pct;
+    formulated[k] = (base[k] || 0) * (1 + pct / 100);
+  }
+  // Ensure excluded-nutrient (base=0) keeps formulated=0 regardless of overage.
+  for (const [k, v] of Object.entries(base)) {
+    if (v === 0) formulated[k] = 0;
+  }
+
+  const months = shelfLifeConfig?.months || 6;
+  if (months !== 6 || (shelfLifeConfig?.storage && shelfLifeConfig.storage !== 'standard') || (shelfLifeConfig?.vitAForm && shelfLifeConfig.vitAForm !== 'standard')) {
+    notes.push(`Commercial overage applied for ${months}-month shelf life (${shelfLifeConfig?.storage || 'standard'} storage, Vit A form: ${shelfLifeConfig?.vitAForm || 'standard'}).`);
+  }
+
+  return { base, formulated, overagesPct, notes, defaults, shelfLifeConfig };
 }

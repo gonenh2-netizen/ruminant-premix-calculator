@@ -55,6 +55,7 @@ export function RequirementsTable({ calc, dmi, adjustedReqs, nutrientOverrides, 
         <h3 className="font-bold text-slate-800">Daily Nutrient Requirements</h3>
         <p className="text-xs text-slate-500">
           Per animal at {dmi} kg DMI — 100% = NRC baseline. Edit % to go above / below requirement, or untick to exclude.
+          <span className="ml-1 text-slate-400">Formulated target = biological × (1 + shelf-life overage).</span>
           {adjustedReqs.notes.length > 0 && <span className="text-blue-600"> · {adjustedReqs.notes.length} adjustment(s) applied</span>}
         </p>
       </div>
