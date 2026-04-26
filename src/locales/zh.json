@@ -202,7 +202,13 @@
     "noSaves": "尚无保存的配方。保存当前设置以便快速调用。",
     "savedOn": "保存于 {{date}}",
     "load": "载入",
-    "delete": "删除"
+    "delete": "删除",
+    "import": "导入…",
+    "importTooltip": "从 JSON 文件导入配方",
+    "importHelp": "选择一个或多个从本应用或同事账户导出的 .json 文件。",
+    "importOk": "已导入 {{count}} 个配方。",
+    "importNoValid": "文件中未找到有效配方。每个条目必须包含 name 和 state 对象。",
+    "exportTooltip": "将此配方下载为 JSON"
   },
   "common": {
     "yes": "是",

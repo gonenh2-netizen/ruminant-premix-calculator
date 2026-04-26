@@ -264,6 +264,7 @@ export default function App() {
             shelfLife={shelfLife} setShelfLife={setShelfLife}
           />
           <SaveLoadPanel
+            t={t}
             saved={saved}
             saveFormulation={saveFormulation}
             removeFormulation={removeFormulation}

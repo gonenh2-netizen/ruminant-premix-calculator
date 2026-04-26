@@ -202,7 +202,13 @@
     "noSaves": "No saved formulations yet. Save the current setup for quick recall.",
     "savedOn": "saved {{date}}",
     "load": "Load",
-    "delete": "Delete"
+    "delete": "Delete",
+    "import": "Import…",
+    "importTooltip": "Import formulations from JSON file(s)",
+    "importHelp": "Select one or more .json files exported from this app or a colleague's account.",
+    "importOk": "Imported {{count}} formulation(s).",
+    "importNoValid": "No valid formulations found in the file. Make sure each entry has a name and a state object.",
+    "exportTooltip": "Download this formulation as JSON"
   },
   "common": {
     "yes": "Yes",

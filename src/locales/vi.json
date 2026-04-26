@@ -202,7 +202,13 @@
     "noSaves": "Chưa có công thức nào được lưu. Lưu cài đặt hiện tại để gọi lại nhanh.",
     "savedOn": "lưu ngày {{date}}",
     "load": "Tải",
-    "delete": "Xóa"
+    "delete": "Xóa",
+    "import": "Nhập…",
+    "importTooltip": "Nhập công thức từ tệp JSON",
+    "importHelp": "Chọn một hoặc nhiều tệp .json đã xuất từ ứng dụng này hoặc tài khoản của đồng nghiệp.",
+    "importOk": "Đã nhập {{count}} công thức.",
+    "importNoValid": "Không tìm thấy công thức hợp lệ trong tệp. Mỗi mục phải có tên và đối tượng state.",
+    "exportTooltip": "Tải công thức này dưới dạng JSON"
   },
   "common": {
     "yes": "Có",
