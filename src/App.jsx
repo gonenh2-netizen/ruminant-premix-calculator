@@ -197,7 +197,7 @@ export default function App() {
     setDcadTarget(s.dcadTarget ?? -100);
     setMaxCaGPerDay(s.maxCaGPerDay ?? 50);
     setXzelitDose(s.xzelitDose ?? 400);
-    setShelfLifeConfig(s.shelfLifeConfig || { months: 6, storage: 'standard', vitAForm: 'standard' });
+    setShelfLifeConfig(s.shelfLifeConfig || { months: 6, storage: 'standard', vitAForm: 'coated' });
     setOverageOverrides(s.overageOverrides || {});
     if (s.priceOverrides) setPrices((prev) => ({ ...prev, ...s.priceOverrides }));
   };
